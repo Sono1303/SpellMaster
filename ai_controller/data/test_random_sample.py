@@ -64,7 +64,7 @@ skeleton_connections = [
 fig, ax = plt.subplots(1, 1, figsize=(12, 12))
 
 ax.set_xlim(-4, 4)
-ax.set_ylim(-4, 4)
+ax.set_ylim(-3, 3)
 ax.set_aspect('equal')
 ax.invert_yaxis()
 ax.grid(True, alpha=0.4, linestyle='--', linewidth=0.5)
