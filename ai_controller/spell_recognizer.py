@@ -4,7 +4,12 @@ import joblib
 import numpy as np
 from pathlib import Path
 import time
+import warnings
 from vfx_library import VFXManager, draw_vfx
+
+# Suppress sklearn and protobuf warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+warnings.filterwarnings('ignore', category=UserWarning, module='google.protobuf')
 
 class SpellRecognizer:
     def __init__(self, model_path=None):
@@ -61,10 +66,78 @@ class SpellRecognizer:
         
         # VFX Manager initialization
         self.vfx_manager = VFXManager()
+        from vfx_library import extract_sprites, SpriteEffect
+
+        # Optional: Load sprite sheets if available
+        sprites_dir = Path(__file__).parent / "assets" / "sprites"
+
+        try:
+            # Load sprite sheets
+            tiger_sprites = extract_sprites(
+                str(sprites_dir / "fireball.png"),
+                rows=4,
+                cols=4
+            )
+            if tiger_sprites:
+                self.vfx_manager.effects['Tiger'] = SpriteEffect(
+                    tiger_sprites,
+                    duration=60,
+                    frame_skip=2,
+                    scale=1.5
+                )
+
+            # Repeat for Dragon and Ox...
+            dragon_sprites = extract_sprites(
+                str(sprites_dir / "ice.png"),
+                rows=4,
+                cols=4
+            )
+            if dragon_sprites:
+                self.vfx_manager.effects['Dragon'] = SpriteEffect(
+                    dragon_sprites,
+                    duration=60,
+                    frame_skip=2,
+                    scale=1.5
+                )
+
+            ox_sprites = extract_sprites(
+                str(sprites_dir / "lightning.png"),
+                rows=4,
+                cols=4
+            )
+            if ox_sprites:
+                self.vfx_manager.effects['Ox'] = SpriteEffect(
+                    ox_sprites,
+                    duration=60,
+                    frame_skip=2,
+                    scale=1.5
+                )
+
+        except Exception as e:
+            print(f"Warning: Could not load sprite sheets: {e}")
+            print("Using procedural effects instead")
+
         
         # Spell trigger tracking (prevent rapid re-triggering)
         self.last_triggered_spell = None
         self.spell_trigger_cooldown = 0
+        self.last_trigger_time = 0  # Track when spell was last triggered
+        self.trigger_cooldown_frames = 150  # Prevent re-triggering for 150 frames (~5 sec at 30fps)
+        
+        # Countdown timer for spell casting
+        self.countdown_active = False
+        self.countdown_frames = 0
+        self.countdown_total = 30  # 30 frames = ~1 second at 30fps
+        self.pending_spell_name = None
+        self.pending_spell_center = None
+        
+        # Debug mode for keyboard spell casting
+        self.debug_mode = False
+        self.debug_spell_center = (640, 360)  # Center of screen for debug effects
+        
+        # Diagnostic tracking
+        self.frame_count = 0
+        self.prediction_log = []  # Track last 10 predictions
         
         # Camera initialization
         self.cap = cv2.VideoCapture(0)
@@ -306,16 +379,78 @@ class SpellRecognizer:
             spell_name: Name of recognized spell
             center_coord: Center position (x, y) of bounding box
         """
-        # Map spell names to VFX types
+        # Map spell names to VFX types (using Fire, Air, Water, Earth system)
         spell_to_vfx = {
-            'Tiger': 'Tiger',
-            'Dragon': 'Dragon',
-            'Ox': 'Ox',
+            # Direct spell names
+            'Fire': 'Fire',
+            'Water': 'Water',
+            'Air': 'Air',
+            'Earth': 'Fire',  # Fallback to Fire if Earth is detected
+            # Aliases
+            'Tiger': 'Fire',
+            'Fireball': 'Fire',
+            'Dragon': 'Water',
+            'Ice': 'Water',
+            'Ox': 'Air',
+            'Lightning': 'Air',
         }
+        
+        print(f"[DEBUG] trigger_vfx_for_spell called: spell_name={spell_name}, center={center_coord}")
         
         if spell_name in spell_to_vfx:
             vfx_type = spell_to_vfx[spell_name]
-            self.vfx_manager.trigger_spell(vfx_type)
+            cooldown_remaining = self.frame_count - self.last_trigger_time
+            print(f"[DEBUG] Cooldown check: frame_count={self.frame_count}, last_trigger_time={self.last_trigger_time}, remaining={cooldown_remaining}, threshold={self.trigger_cooldown_frames}")
+            
+            # Check cooldown to prevent rapid re-triggering
+            if cooldown_remaining > self.trigger_cooldown_frames:
+                self.vfx_manager.trigger_spell(vfx_type)
+                self.last_triggered_spell = spell_name
+                self.last_trigger_time = self.frame_count
+                remaining_cooldown = self.trigger_cooldown_frames / 30.0  # Convert frames to seconds
+                print(f"✨ SPELL CAST: {spell_name} → VFX: {vfx_type} (Confidence: {self.last_confidence:.0f}%) | Cooldown: {remaining_cooldown:.1f}s")
+                return True
+            else:
+                print(f"[DEBUG] Still in cooldown period: {cooldown_remaining}/{self.trigger_cooldown_frames} frames")
+                return False
+        else:
+            print(f"[DEBUG] Spell '{spell_name}' not found in mapping. Available: {list(spell_to_vfx.keys())}")
+            return False
+    
+    def handle_debug_input(self, key):
+        """
+        Handle debug keyboard input for spell casting.
+        
+        Keys:
+            D: Toggle debug mode
+            1: Cast Tiger/Fireball
+            2: Cast Dragon/Ice
+            3: Cast Ox/Lightning
+            M: Move debug center to mouse position (if supported)
+        """
+        if key == ord('d') or key == ord('D'):
+            self.debug_mode = not self.debug_mode
+            status = "ON" if self.debug_mode else "OFF"
+            print(f"\n🔧 Debug Mode: {status}")
+            if self.debug_mode:
+                print("   Press 1: Cast Fireball (Tiger)")
+                print("   Press 2: Cast Ice (Dragon)")
+                print("   Press 3: Cast Lightning (Ox)")
+                print("   Press D: Toggle debug mode off")
+            return True
+        
+        if self.debug_mode:
+            if key == ord('1'):
+                self.trigger_vfx_for_spell('Tiger', self.debug_spell_center)
+                return True
+            elif key == ord('2'):
+                self.trigger_vfx_for_spell('Dragon', self.debug_spell_center)
+                return True
+            elif key == ord('3'):
+                self.trigger_vfx_for_spell('Ox', self.debug_spell_center)
+                return True
+        
+        return False
     
     def draw_ui(self, frame, hand_count, show_warning=False):
         """Draw UI information on frame."""
@@ -325,6 +460,54 @@ class SpellRecognizer:
         hand_text = f"Hands detected: {hand_count}"
         hand_color = (0, 255, 0) if hand_count == 2 else (0, 165, 255)  # Green if 2 hands, Orange otherwise
         cv2.putText(frame, hand_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, hand_color, 2)
+        
+        # Debug mode indicator
+        if self.debug_mode:
+            debug_text = "DEBUG MODE: ON"
+            cv2.putText(frame, debug_text, (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 165, 255), 2)
+            
+            # Draw debug center point
+            cv2.circle(frame, self.debug_spell_center, 10, (0, 165, 255), 2)
+            cv2.circle(frame, self.debug_spell_center, 3, (0, 165, 255), -1)
+            
+            # Draw debug help
+            debug_help = [
+                "1: Fireball (Tiger)",
+                "2: Ice (Dragon)",
+                "3: Lightning (Ox)",
+                "D: Turn off debug"
+            ]
+            
+            for i, help_text in enumerate(debug_help):
+                cv2.putText(frame, help_text, (10, 120 + i * 35), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 1)
+        
+        # Countdown timer display
+        if self.countdown_active:
+            countdown_remaining = self.countdown_total - self.countdown_frames
+            countdown_percent = int((self.countdown_frames / self.countdown_total) * 100)
+            countdown_text = f"⏱️ CASTING {self.pending_spell_name}... {countdown_percent}%"
+            
+            # Draw countdown background
+            text_size = cv2.getTextSize(countdown_text, cv2.FONT_HERSHEY_SIMPLEX, 1.2, 3)[0]
+            cv2.rectangle(
+                frame,
+                (w // 2 - text_size[0] // 2 - 10, h // 2 - 50),
+                (w // 2 + text_size[0] // 2 + 10, h // 2 - 10),
+                (100, 50, 200),  # Purple background
+                -1
+            )
+            
+            # Draw countdown text
+            cv2.putText(
+                frame,
+                countdown_text,
+                (w // 2 - text_size[0] // 2, h // 2 - 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.2,
+                (0, 255, 255),  # Yellow text
+                3
+            )
         
         # Single hand warning
         if show_warning and hand_count == 1:
@@ -355,7 +538,8 @@ class SpellRecognizer:
         # Instructions
         instructions = [
             "Q: Quit",
-            "Confidence threshold: 75%"
+            "D: Debug Mode",
+            "Confidence: 75%"
         ]
         
         for i, instruction in enumerate(instructions):
@@ -379,12 +563,15 @@ class SpellRecognizer:
             return None, 0
         
         try:
-            # Get prediction
-            prediction = self.model.predict([feature_vector])[0]
-            
-            # Get confidence probabilities
-            probabilities = self.model.predict_proba([feature_vector])[0]
-            max_confidence = max(probabilities)
+            # Suppress sklearn feature name warning
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', category=UserWarning)
+                # Get prediction
+                prediction = self.model.predict([feature_vector])[0]
+                
+                # Get confidence probabilities
+                probabilities = self.model.predict_proba([feature_vector])[0]
+                max_confidence = max(probabilities)
             
             # Apply confidence threshold
             if max_confidence > self.confidence_threshold:
@@ -399,17 +586,33 @@ class SpellRecognizer:
     
     def run(self):
         """Main loop for real-time spell recognition."""
-        print("\n=== Real-time Spell Recognizer with VFX ===")
+        print("\n" + "="*60)
+        print("=== Real-time Spell Recognizer with VFX ===".center(60))
+        print("="*60)
         print(f"Confidence threshold: {self.confidence_threshold * 100:.0f}%")
         print(f"VFX Trigger threshold: 80%")
+        print(f"Trigger cooldown: {self.trigger_cooldown_frames} frames")
         print(f"Recognized spells: {list(self.vfx_manager.effects.keys())}")
-        print("Press Q to quit\n")
+        print("\n📋 Controls:")
+        print("  Q: Quit")
+        print("  D: Toggle Debug Mode (keyboard spell casting)")
+        print("  V: Toggle verbose mode (show all predictions)")
+        print("\n🔧 Debug Mode (Press D):")
+        print("  1: Cast Fireball (Tiger)")
+        print("  2: Cast Ice (Dragon)")
+        print("  3: Cast Lightning (Ox)")
+        print("="*60 + "\n")
+        
+        verbose_mode = False
         
         while True:
             ret, frame = self.cap.read()
             if not ret:
                 print("Failed to capture frame")
                 break
+            
+            # Increment frame counter
+            self.frame_count += 1
             
             # Mirror the frame
             frame = cv2.flip(frame, 1)
@@ -443,19 +646,26 @@ class SpellRecognizer:
                 if feature_vector is not None:
                     spell_name, confidence = self.predict_spell(feature_vector)
                     
+                    # Log prediction for diagnostics
+                    if verbose_mode:
+                        print(f"[Frame {self.frame_count}] Predicted: {spell_name if spell_name else 'NO_MATCH'} ({confidence:.1f}%)")
+                    
                     # Update last prediction
                     if spell_name is not None:
                         self.last_prediction = spell_name
                         self.last_confidence = confidence
                         self.prediction_hold_frames = 0
                         
-                        # Trigger VFX if confidence is high enough
-                        if confidence > 80 and spell_name != self.last_triggered_spell:
+                        # Start countdown if confidence is high enough AND not already in countdown
+                        if confidence > 80 and not self.countdown_active:
                             bbox = self.get_hand_bounding_box(results, frame.shape)
                             if bbox is not None:
                                 bbox_center = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
-                                self.trigger_vfx_for_spell(spell_name, bbox_center)
-                                self.last_triggered_spell = spell_name
+                                self.countdown_active = True
+                                self.countdown_frames = 0
+                                self.pending_spell_name = spell_name
+                                self.pending_spell_center = bbox_center
+                                print(f"⏱️ CASTING: {spell_name}... (Confidence: {confidence:.0f}%)")
                     else:
                         # Continue holding last prediction for a few frames
                         if self.last_prediction is not None:
@@ -466,7 +676,6 @@ class SpellRecognizer:
                             else:
                                 self.last_prediction = None
                                 self.last_confidence = 0
-                                self.last_triggered_spell = None
                     
                     # Get bounding box
                     bbox = self.get_hand_bounding_box(results, frame.shape)
@@ -475,15 +684,33 @@ class SpellRecognizer:
                 # Not processing - either 0 or 1 hand detected
                 self.last_prediction = None
                 self.last_confidence = 0
-                self.last_triggered_spell = None
+            
+            # Update countdown timer and trigger spell when countdown completes
+            if self.countdown_active:
+                self.countdown_frames += 1
+                if self.countdown_frames >= self.countdown_total:
+                    # Countdown complete - trigger the spell
+                    print(f"[DEBUG] Countdown completed! pending_spell_name={self.pending_spell_name}, pending_spell_center={self.pending_spell_center}")
+                    self.trigger_vfx_for_spell(self.pending_spell_name, self.pending_spell_center)
+                    self.countdown_active = False
+                    self.countdown_frames = 0
+                    self.pending_spell_name = None
+                    self.pending_spell_center = None
             
             # Draw bounding box and prediction
             self.draw_bounding_box(frame, bbox, spell_name, confidence)
             
             # Update and draw VFX effects
+            # Always render VFX (use debug center if no bbox or in debug mode)
             if bbox is not None:
                 bbox_center = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
                 self.vfx_manager.update_and_draw(frame, bbox_center)
+            elif self.debug_mode:
+                # In debug mode, render at screen center even without hands
+                self.vfx_manager.update_and_draw(frame, self.debug_spell_center)
+            else:
+                # Normal mode without hands: still update effects (they'll fade out)
+                self.vfx_manager.update_and_draw(frame, (w // 2, h // 2))
             
             # Draw UI with warning
             self.draw_ui(frame, hand_count, show_warning)
@@ -494,6 +721,11 @@ class SpellRecognizer:
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
             
+            # Check debug mode controls first
+            if self.handle_debug_input(key):
+                continue
+            
+            # Regular input handling
             if key == ord('q') or key == ord('Q'):
                 print("Exiting...")
                 break
