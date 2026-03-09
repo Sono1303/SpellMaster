@@ -11,6 +11,13 @@ from vfx_library import VFXManager, draw_vfx
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 warnings.filterwarnings('ignore', category=UserWarning, module='google.protobuf')
 
+# Spell State Machine states
+class SpellState:
+    IDLE = "IDLE"           # No active spell detection
+    CHANTING = "CHANTING"   # Confidence > 0.8, charging timer
+    ACTIVATED = "ACTIVATED" # Timer reached threshold, ready to cast
+    EXECUTING = "EXECUTING" # Spell is executing
+
 class SpellRecognizer:
     def __init__(self, model_path=None):
         """Initialize the spell recognizer with trained model."""
@@ -117,6 +124,22 @@ class SpellRecognizer:
             print(f"Warning: Could not load sprite sheets: {e}")
             print("Using procedural effects instead")
 
+        
+        # Spell State Machine
+        self.current_state = SpellState.IDLE
+        self.chant_timer = 0
+        self.chant_threshold = 30  # Frames needed to reach ACTIVATED state (~1 second at 30fps)
+        self.last_hand_detected_time = 0  # Track when hand was last detected
+        
+        # Game State (HP/MP)
+        self.hp = 100
+        self.mp = 100
+        self.max_hp = 100
+        self.max_mp = 100
+        self.mp_cost_per_spell = 25  # MP consumed when spell is cast
+        
+        # Gesture icons configuration
+        self.gesture_icons = ['🔥 Fireball', '❄️ Ice', '⚡Lightning']
         
         # Spell trigger tracking (prevent rapid re-triggering)
         self.last_triggered_spell = None
@@ -320,6 +343,110 @@ class SpellRecognizer:
         max_y = min(h, max(all_y) + 20)
         
         return (min_x, min_y, max_x, max_y)
+    
+    def draw_status_bars(self, frame, hp, mp):
+        """
+        Draw HP and MP bars on top-left corner of frame.
+        
+        Args:
+            frame: The image frame to draw on
+            hp: Current HP value
+            mp: Current MP value
+        """
+        h, w, _ = frame.shape
+        
+        # Bar configuration
+        bar_width = 200
+        bar_height = 20
+        padding = 15
+        x_offset = padding
+        y_offset = padding
+        
+        # HP Bar (Red)
+        hp_percentage = hp / self.max_hp
+        cv2.rectangle(frame, (x_offset, y_offset), (x_offset + bar_width, y_offset + bar_height), (50, 50, 50), -1)
+        cv2.rectangle(frame, (x_offset, y_offset), 
+                     (x_offset + int(bar_width * hp_percentage), y_offset + bar_height), 
+                     (0, 0, 255), -1)
+        cv2.rectangle(frame, (x_offset, y_offset), (x_offset + bar_width, y_offset + bar_height), (200, 200, 200), 2)
+        
+        # HP Text
+        hp_text = f"HP: {int(hp)}/{int(self.max_hp)}"
+        cv2.putText(frame, hp_text, (x_offset + 10, y_offset + 15), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        
+        # MP Bar (Blue) - positioned below HP bar
+        mp_y_offset = y_offset + bar_height + 10
+        mp_percentage = mp / self.max_mp
+        cv2.rectangle(frame, (x_offset, mp_y_offset), (x_offset + bar_width, mp_y_offset + bar_height), (50, 50, 50), -1)
+        cv2.rectangle(frame, (x_offset, mp_y_offset), 
+                     (x_offset + int(bar_width * mp_percentage), mp_y_offset + bar_height), 
+                     (255, 0, 0), -1)
+        cv2.rectangle(frame, (x_offset, mp_y_offset), (x_offset + bar_width, mp_y_offset + bar_height), (200, 200, 200), 2)
+        
+        # MP Text
+        mp_text = f"MP: {int(mp)}/{int(self.max_mp)}"
+        cv2.putText(frame, mp_text, (x_offset + 10, mp_y_offset + 15), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+    
+    def draw_gesture_icons(self, frame):
+        """
+        Draw gesture/spell icon hints at the bottom of the frame.
+        
+        Args:
+            frame: The image frame to draw on
+        """
+        h, w, _ = frame.shape
+        
+        # Configuration
+        icon_y_offset = h - 60
+        icon_spacing = w // (len(self.gesture_icons) + 1)
+        icon_size = 40
+        
+        # Draw icons with labels
+        for idx, gesture in enumerate(self.gesture_icons):
+            x_pos = icon_spacing * (idx + 1)
+            
+            # Draw gesture box
+            cv2.rectangle(frame, (x_pos - icon_size // 2, icon_y_offset - icon_size // 2),
+                        (x_pos + icon_size // 2, icon_y_offset + icon_size // 2),
+                        (0, 200, 200), 2)
+            
+            # Draw gesture number
+            number_text = f"{idx + 1}"
+            cv2.putText(frame, number_text, (x_pos - 8, icon_y_offset + 8),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 200, 200), 2)
+            
+            # Draw gesture label
+            cv2.putText(frame, gesture, (x_pos - 30, icon_y_offset + 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 200, 200), 1)
+    
+    def draw_progress_circle(self, frame, center, radius, progress, thickness=3):
+        """
+        Draw a progress circle around hand position.
+        
+        Args:
+            frame: The image frame to draw on
+            center: Circle center position (x, y)
+            radius: Circle radius
+            progress: Progress percentage (0.0 - 1.0)
+            thickness: Line thickness
+        """
+        # Calculate the arc angle
+        angle = int(360 * progress)
+        
+        # Draw background circle
+        cv2.circle(frame, center, radius, (50, 50, 100), thickness)
+        
+        # Draw progress arc (cyan color)
+        cv2.ellipse(frame, center, (radius, radius), 0, 0, angle, (0, 255, 255), thickness)
+        
+        # Draw progress percentage text
+        progress_text = f"{int(progress * 100)}%"
+        text_size = cv2.getTextSize(progress_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        cv2.putText(frame, progress_text, 
+                   (center[0] - text_size[0] // 2, center[1] + 8),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
     
     def draw_landmarks(self, frame, results):
         """Draw hand landmarks and connections on the frame."""
@@ -553,6 +680,42 @@ class SpellRecognizer:
                 1
             )
     
+    def draw_debug_info(self, frame, spell_name, confidence, fps, hand_count):
+        """
+        Draw technical debug information on frame.
+        
+        Args:
+            frame: The image frame to draw on
+            spell_name: Detected spell name
+            confidence: Confidence percentage
+            fps: Current frames per second
+            hand_count: Number of hands detected
+        """
+        h, w, _ = frame.shape
+        info_y = 20
+        line_spacing = 30
+        
+        # Create colored background for info box
+        cv2.rectangle(frame, (10, 5), (400, 200), (0, 0, 0), -1)
+        cv2.rectangle(frame, (10, 5), (400, 200), (200, 200, 200), 2)
+        
+        # Draw technical info
+        debug_info = [
+            f"State: {self.current_state}",
+            f"Detected: {spell_name if spell_name else 'NONE'}",
+            f"Confidence: {confidence:.1f}%",
+            f"Chant Timer: {self.chant_timer}/{self.chant_threshold}",
+            f"Hands: {hand_count}",
+            f"FPS: {fps:.1f}",
+            f"HP: {int(self.hp)}/{int(self.max_hp)}",
+            f"MP: {int(self.mp)}/{int(self.max_mp)}",
+        ]
+        
+        for idx, info in enumerate(debug_info):
+            y_pos = info_y + idx * line_spacing
+            cv2.putText(frame, info, (20, y_pos), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+    
     def predict_spell(self, feature_vector):
         """
         Predict spell from feature vector.
@@ -585,25 +748,29 @@ class SpellRecognizer:
             return None, 0
     
     def run(self):
-        """Main loop for real-time spell recognition."""
-        print("\n" + "="*60)
-        print("=== Real-time Spell Recognizer with VFX ===".center(60))
-        print("="*60)
+        """Main loop for real-time spell recognition with dual windows."""
+        print("\n" + "="*70)
+        print("=== Ignite: Spell Master - Dual Window Display System ===".center(70))
+        print("="*70)
         print(f"Confidence threshold: {self.confidence_threshold * 100:.0f}%")
-        print(f"VFX Trigger threshold: 80%")
-        print(f"Trigger cooldown: {self.trigger_cooldown_frames} frames")
+        print(f"Chanting threshold: {self.chant_threshold} frames")
         print(f"Recognized spells: {list(self.vfx_manager.effects.keys())}")
         print("\n📋 Controls:")
         print("  Q: Quit")
         print("  D: Toggle Debug Mode (keyboard spell casting)")
         print("  V: Toggle verbose mode (show all predictions)")
-        print("\n🔧 Debug Mode (Press D):")
-        print("  1: Cast Fireball (Tiger)")
-        print("  2: Cast Ice (Dragon)")
-        print("  3: Cast Lightning (Ox)")
-        print("="*60 + "\n")
+        print("\n🎮 Game Windows:")
+        print("  Window 1: Ignite: Spell Master - Gameplay")
+        print("  Window 2: Debug Console - AI Recognition")
+        print("="*70 + "\n")
+        
+        # Create both windows
+        cv2.namedWindow("Ignite: Spell Master - Gameplay", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("Debug Console - AI Recognition", cv2.WINDOW_NORMAL)
         
         verbose_mode = False
+        start_time = time.time()
+        frame_count = 0
         
         while True:
             ret, frame = self.cap.read()
@@ -611,25 +778,33 @@ class SpellRecognizer:
                 print("Failed to capture frame")
                 break
             
-            # Increment frame counter
+            frame_count += 1
             self.frame_count += 1
             
             # Mirror the frame
             frame = cv2.flip(frame, 1)
             h, w, c = frame.shape
             
+            # Create copies for game and debug displays
+            game_frame = frame.copy()
+            debug_frame = frame.copy()
+            
+            # Calculate FPS
+            elapsed_time = time.time() - start_time
+            fps = frame_count / elapsed_time if elapsed_time > 0 else 0
+            
             # Convert to RGB for MediaPipe
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = self.hands.process(frame_rgb)
             
-            # Draw landmarks
-            self.draw_landmarks(frame, results)
-            
+            # Extract data
             hand_count = len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
             bbox = None
             spell_name = None
             confidence = 0
             show_warning = False
+            
+            # --- SPELL STATE MACHINE LOGIC ---
             
             # Track single hand warning
             if hand_count == 1:
@@ -640,86 +815,161 @@ class SpellRecognizer:
                 show_warning = True
             
             if hand_count == 2:
-                # Only process when exactly 2 hands are detected
+                # Process hand detection
                 feature_vector = self.process_frame_data(results, hand_count)
                 
                 if feature_vector is not None:
                     spell_name, confidence = self.predict_spell(feature_vector)
                     
-                    # Log prediction for diagnostics
-                    if verbose_mode:
-                        print(f"[Frame {self.frame_count}] Predicted: {spell_name if spell_name else 'NO_MATCH'} ({confidence:.1f}%)")
+                    if verbose_mode and spell_name:
+                        print(f"[Frame {self.frame_count}] Predicted: {spell_name} ({confidence:.1f}%)")
                     
-                    # Update last prediction
-                    if spell_name is not None:
-                        self.last_prediction = spell_name
-                        self.last_confidence = confidence
-                        self.prediction_hold_frames = 0
+                    # Get bounding box for visual feedback
+                    bbox = self.get_hand_bounding_box(results, frame.shape)
+                    bbox_center = None
+                    if bbox:
+                        bbox_center = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
+                    
+                    # --- STATE TRANSITIONS ---
+                    if self.current_state == SpellState.IDLE:
+                        # IDLE -> CHANTING: When confidence > 0.8
+                        if confidence > 80:
+                            self.current_state = SpellState.CHANTING
+                            self.chant_timer = 0
+                            self.pending_spell_name = spell_name
+                            self.pending_spell_center = bbox_center
+                            print(f"⚡ CHANTING STARTED: {spell_name} (Confidence: {confidence:.0f}%)")
+                        else:
+                            self.chant_timer = 0
+                    
+                    elif self.current_state == SpellState.CHANTING:
+                        # Increment chant timer
+                        self.chant_timer += 1
                         
-                        # Start countdown if confidence is high enough AND not already in countdown
-                        if confidence > 80 and not self.countdown_active:
-                            bbox = self.get_hand_bounding_box(results, frame.shape)
-                            if bbox is not None:
-                                bbox_center = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
-                                self.countdown_active = True
-                                self.countdown_frames = 0
+                        # Check if still same gesture
+                        if confidence > 80:
+                            # CHANTING -> ACTIVATED: When timer reaches threshold
+                            if self.chant_timer >= self.chant_threshold:
+                                self.current_state = SpellState.ACTIVATED
                                 self.pending_spell_name = spell_name
                                 self.pending_spell_center = bbox_center
-                                print(f"⏱️ CASTING: {spell_name}... (Confidence: {confidence:.0f}%)")
-                    else:
-                        # Continue holding last prediction for a few frames
-                        if self.last_prediction is not None:
-                            self.prediction_hold_frames += 1
-                            if self.prediction_hold_frames < self.prediction_hold_count:
-                                spell_name = self.last_prediction
-                                confidence = self.last_confidence
-                            else:
-                                self.last_prediction = None
-                                self.last_confidence = 0
+                                print(f"🔥 SPELL ACTIVATED: {spell_name}!")
+                        else:
+                            # Confidence dropped, return to IDLE
+                            self.current_state = SpellState.IDLE
+                            self.chant_timer = 0
                     
-                    # Get bounding box
-                    bbox = self.get_hand_bounding_box(results, frame.shape)
+                    elif self.current_state == SpellState.ACTIVATED:
+                        # Stay in ACTIVATED state while gesture is detected
+                        # This allows smooth execution
+                        self.pending_spell_center = bbox_center
+                    
+                    # Update last detection time
+                    self.last_hand_detected_time = self.frame_count
+                
+                else:
+                    # No valid feature vector
+                    if self.current_state == SpellState.CHANTING:
+                        self.current_state = SpellState.IDLE
+                        self.chant_timer = 0
             
             else:
-                # Not processing - either 0 or 1 hand detected
-                self.last_prediction = None
-                self.last_confidence = 0
+                # Hand count is not 2 (could be 0, 1, or >2)
+                # Check if we should execute spell (hand lost while in ACTIVATED state)
+                if self.current_state == SpellState.ACTIVATED and hand_count < 2:
+                    # ACTIVATED -> EXECUTING: Hand lost during activation
+                    if self.mp >= self.mp_cost_per_spell:
+                        print(f"✨ SPELL EXECUTED: {self.pending_spell_name}!")
+                        if self.pending_spell_center:
+                            self.trigger_vfx_for_spell(self.pending_spell_name, self.pending_spell_center)
+                        self.mp -= self.mp_cost_per_spell
+                        self.current_state = SpellState.IDLE
+                        self.chant_timer = 0
+                    else:
+                        print(f"❌ NOT ENOUGH MP! Required: {self.mp_cost_per_spell}, Current: {int(self.mp)}")
+                        self.current_state = SpellState.IDLE
+                        self.chant_timer = 0
+                
+                elif self.current_state == SpellState.CHANTING:
+                    # Hands lost while chanting
+                    self.current_state = SpellState.IDLE
+                    self.chant_timer = 0
             
-            # Update countdown timer and trigger spell when countdown completes
-            if self.countdown_active:
-                self.countdown_frames += 1
-                if self.countdown_frames >= self.countdown_total:
-                    # Countdown complete - trigger the spell
-                    print(f"[DEBUG] Countdown completed! pending_spell_name={self.pending_spell_name}, pending_spell_center={self.pending_spell_center}")
-                    self.trigger_vfx_for_spell(self.pending_spell_name, self.pending_spell_center)
-                    self.countdown_active = False
-                    self.countdown_frames = 0
-                    self.pending_spell_name = None
-                    self.pending_spell_center = None
+            # --- GAME FRAME RENDERING (Gameplay View) ---
             
-            # Draw bounding box and prediction
-            self.draw_bounding_box(frame, bbox, spell_name, confidence)
+            # Draw landmarks only on debug frame
+            self.draw_landmarks(debug_frame, results)
             
-            # Update and draw VFX effects
-            # Always render VFX (use debug center if no bbox or in debug mode)
-            if bbox is not None:
+            # Draw bounding box on both frames
+            if bbox:
+                min_x, min_y, max_x, max_y = bbox
+                
+                # Color based on state
+                if self.current_state == SpellState.IDLE:
+                    bbox_color = (0, 255, 0)  # Green
+                elif self.current_state == SpellState.CHANTING:
+                    bbox_color = (0, 165, 255)  # Orange
+                elif self.current_state == SpellState.ACTIVATED:
+                    bbox_color = (0, 255, 255)  # Yellow
+                else:
+                    bbox_color = (0, 255, 0)  # Green
+                
+                # Draw bounding box on game frame
+                cv2.rectangle(game_frame, (min_x, min_y), (max_x, max_y), bbox_color, 3)
+                
+                # Draw bounding box on debug frame
+                cv2.rectangle(debug_frame, (min_x, min_y), (max_x, max_y), bbox_color, 2)
+                
+                # Draw progress circle in CHANTING state
+                if self.current_state == SpellState.CHANTING:
+                    center = ((min_x + max_x) // 2, (min_y + max_y) // 2)
+                    radius = max((max_x - min_x), (max_y - min_y)) // 2 + 20
+                    progress = self.chant_timer / self.chant_threshold
+                    self.draw_progress_circle(game_frame, center, radius, progress, thickness=3)
+            
+            # Draw VFX effects
+            if bbox:
                 bbox_center = ((bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2)
-                self.vfx_manager.update_and_draw(frame, bbox_center)
+                self.vfx_manager.update_and_draw(game_frame, bbox_center)
             elif self.debug_mode:
-                # In debug mode, render at screen center even without hands
-                self.vfx_manager.update_and_draw(frame, self.debug_spell_center)
+                self.vfx_manager.update_and_draw(game_frame, self.debug_spell_center)
             else:
-                # Normal mode without hands: still update effects (they'll fade out)
-                self.vfx_manager.update_and_draw(frame, (w // 2, h // 2))
+                self.vfx_manager.update_and_draw(game_frame, (w // 2, h // 2))
             
-            # Draw UI with warning
-            self.draw_ui(frame, hand_count, show_warning)
+            # Draw UI on game frame
+            self.draw_status_bars(game_frame, self.hp, self.mp)
+            self.draw_gesture_icons(game_frame)
             
-            # Display frame
-            cv2.imshow("Real-time Spell Recognizer", frame)
+            # Draw warnings and debug info on game frame
+            self.draw_ui(game_frame, hand_count, show_warning)
+            
+            # --- DEBUG FRAME RENDERING (Debug Console View) ---
+            
+            # Draw debug information
+            self.draw_debug_info(debug_frame, spell_name if spell_name else "NONE", confidence, fps, hand_count)
+            
+            # Draw MP cost warning if applicable
+            if self.mp < self.mp_cost_per_spell:
+                warning_text = f"⚠ LOW MP: Need {self.mp_cost_per_spell} to cast"
+                text_size = cv2.getTextSize(warning_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+                cv2.rectangle(debug_frame, (w - 350, h - 60), (w - 10, h - 10), (0, 0, 255), -1)
+                cv2.putText(debug_frame, warning_text, (w - 340, h - 20), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            
+            # --- DISPLAY BOTH FRAMES ---
+            cv2.imshow("Ignite: Spell Master - Gameplay", game_frame)
+            cv2.imshow("Debug Console - AI Recognition", debug_frame)
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
+            
+            # Check if windows are closed
+            if cv2.getWindowProperty("Ignite: Spell Master - Gameplay", cv2.WND_PROP_VISIBLE) < 1:
+                print("Gameplay window closed. Exiting...")
+                break
+            if cv2.getWindowProperty("Debug Console - AI Recognition", cv2.WND_PROP_VISIBLE) < 1:
+                print("Debug window closed. Exiting...")
+                break
             
             # Check debug mode controls first
             if self.handle_debug_input(key):
@@ -729,6 +979,10 @@ class SpellRecognizer:
             if key == ord('q') or key == ord('Q'):
                 print("Exiting...")
                 break
+            elif key == ord('v') or key == ord('V'):
+                verbose_mode = not verbose_mode
+                status = "ON" if verbose_mode else "OFF"
+                print(f"Verbose mode: {status}")
         
         # Cleanup
         self.cap.release()
