@@ -4,6 +4,7 @@ Centralized configuration for all game parameters, paths, and visual settings
 """
 
 from pathlib import Path
+import cv2
 
 # ============================================================================
 # PROJECT PATHS
@@ -38,6 +39,16 @@ WINDOW_DEBUG = "Debug Console - AI Recognition"
 # ============================================================================
 # COLOR SCHEME (BGR Format - OpenCV Standard)
 # ============================================================================
+
+# Basic colors
+COLOR_BLACK = (0, 0, 0)
+COLOR_WHITE = (255, 255, 255)
+COLOR_RED = (0, 0, 255)
+COLOR_GREEN = (0, 255, 0)
+COLOR_BLUE = (255, 0, 0)
+COLOR_CYAN = (255, 255, 0)
+COLOR_YELLOW = (0, 255, 255)
+COLOR_PURPLE = (255, 0, 255)
 
 # HP Bar - Red
 COLOR_HP = (0, 0, 255)
@@ -156,12 +167,17 @@ STATUS_BAR_PADDING = 15
 STATUS_BAR_SPACING = 10
 STATUS_BAR_THICKNESS = 2
 
-# Gesture icon configuration
-GESTURE_ICONS = ['Fireball', 'Ice', 'Lightning']
-GESTURE_ICON_SIZE = 40
-GESTURE_ICON_OFFSET_Y = 60  # Distance from bottom
+# HUD elements
+HUD_CORNER_RADIUS = 10      # Corner radius for HUD backgrounds
+BAR_HEIGHT = 20             # Height of progress/status bars
+BAR_PADDING = 15            # Padding around bars
+BAR_BORDER_WIDTH = 2        # Border thickness
+HUD_ALPHA = 0.8             # HUD background transparency (0-1)
 
 # Font settings
+FONT_FACE = cv2.FONT_HERSHEY_SIMPLEX
+FONT_SCALE = 0.6
+FONT_THICKNESS = 1
 FONT = "cv2.FONT_HERSHEY_SIMPLEX"
 FONT_SIZE_NORMAL = 0.6
 FONT_SIZE_LARGE = 0.8
@@ -169,6 +185,11 @@ FONT_SIZE_HUGE = 1.2
 FONT_THICKNESS_NORMAL = 1
 FONT_THICKNESS_BOLD = 2
 FONT_THICKNESS_EXTRA = 3
+
+# Gesture icon configuration
+GESTURE_ICONS = ['Fireball', 'Ice', 'Lightning']
+GESTURE_ICON_SIZE = 40
+GESTURE_ICON_OFFSET_Y = 60  # Distance from bottom
 
 # Progress circle
 PROGRESS_CIRCLE_RADIUS = 30

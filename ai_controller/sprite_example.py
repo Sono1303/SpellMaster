@@ -14,42 +14,115 @@ def setup_sprite_effects():
     Setup sprite-based effects by loading sprite sheets.
     
     Returns:
-        VFXManager with sprite effects, or None if sprites not found
+        tuple: (VFXManager with sprite effects, sprite_configs with metadata)
     """
     sprites_dir = Path(__file__).parent / "assets" / "sprites"
     
     # Create VFX manager
     vfx_manager = VFXManager()
     
-    # List of sprite sheets to load
+    # List of sprite sheets to load - now with custom key bindings
     sprite_configs = [
         {
             'name': 'Tiger',
+            'display_name': 'Fireball (Tiger)',
             'file': 'fireball.png',
             'rows': 4,
             'cols': 4,
             'duration': 60,
             'frame_skip': 2,
-            'scale': 1.5
+            'scale': 1.5,
+            'key': '1'
         },
         {
             'name': 'Dragon',
+            'display_name': 'Ice (Dragon)',
             'file': 'ice.png',
-            'rows': 4,
-            'cols': 4,
+            'rows': 2,
+            'cols': 5,
             'duration': 60,
             'frame_skip': 2,
-            'scale': 1.5
+            'scale': 1.5,
+            'key': '2'
         },
         {
             'name': 'Ox',
-            'file': 'lightning.png',
+            'display_name': 'Lightning (Ox)',
+            'file': 'feather.png',
             'rows': 4,
             'cols': 4,
             'duration': 60,
             'frame_skip': 2,
-            'scale': 1.5
+            'scale': 1.5,
+            'key': '3'
         },
+                {
+            'name': 'Water Spike',
+            'display_name': 'Water Spike (Water)',
+            'file': 'water_spike.png',
+            'rows': 4,
+            'cols': 5,
+            'duration': 60,
+            'frame_skip': 2,
+            'scale': 5,
+            'key': '4'
+        },
+        {
+            'name': 'Thunder',
+            'display_name': 'Thunder (Thunder)',
+            'file': 'thunder.png',
+            'rows': 1,
+            'cols': 13,
+            'duration': 60,
+            'frame_skip': 2,
+            'scale': 5,
+            'key': '5'
+        },
+        {
+            'name': 'air',
+            'display_name': 'Air (Air)',
+            'file': 'air.png',
+            'rows': 3,
+            'cols': 4,
+            'duration': 60,
+            'frame_skip': 2,
+            'scale': 10,
+            'key': '6'
+        },
+            {
+                'name': 'earth',
+                'display_name': 'Earth (Earth)',
+                'file': 'earth.png',
+                'rows': 2,
+                'cols': 6,
+                'duration': 60,
+                'frame_skip': 2,
+                'scale': 10,
+                'key': '7'
+            },
+            {
+                'name': 'ice2',
+                'display_name': 'Ice (Ice)',
+                'file': 'ice2.png',
+                'rows': 7,
+                'cols': 5,
+                'duration': 60,
+                'frame_skip': 2,
+                'scale': 10,
+                'key': '8'
+            },
+            {
+                'name': 'dark',
+                'display_name': 'Dark',
+                'file': 'dark.png',
+                'rows': 1,
+                'cols': 16,
+                'duration': 60,
+                'frame_skip': 2,
+                'scale': 10,
+                'key': '9'
+            },
+
     ]
     
     print("\n" + "="*60)
@@ -91,33 +164,39 @@ def setup_sprite_effects():
     
     if sprites_loaded > 0:
         print(f"✓ Successfully loaded {sprites_loaded} sprite effects")
-        return vfx_manager
     else:
         print("✗ No sprite sheets found, using procedural effects")
-        return vfx_manager  # Return default effects
+    
+    return vfx_manager, sprite_configs  # Return both manager and configs
 
 
 def test_sprite_rendering():
     """
-    Test sprite rendering with keyboard controls.
-    Press:
-      1: Trigger Tiger (Fireball)
-      2: Trigger Dragon (Ice)
-      3: Trigger Ox (Lightning)
-      S: Save frame
-      Q: Quit
+    Test sprite rendering with keyboard controls (dynamically generated from sprite_configs).
+    Controls are automatically generated based on the 'key' field in each sprite config.
     """
     
-    # Setup VFX manager with sprites
-    vfx_manager = setup_sprite_effects()
+    # Setup VFX manager with sprites and get configs
+    vfx_manager, sprite_configs = setup_sprite_effects()
     
     print("\n" + "="*60)
     print("Sprite Animation Test")
     print("="*60)
     print("\nControls:")
-    print("  1: Cast Fireball (Tiger)")
-    print("  2: Cast Ice (Dragon)")
-    print("  3: Cast Lightning (Ox)")
+    
+    # Build key mapping from configs
+    key_mapping = {}
+    for config in sprite_configs:
+        key = config['key']
+        name = config['display_name']
+        spell_name = config['name']
+        
+        key_mapping[ord(key)] = {
+            'spell_name': spell_name,
+            'display_name': name
+        }
+        print(f"  {key}: {name}")
+    
     print("  S: Save frame to output/")
     print("  Q: Quit")
     print("="*60 + "\n")
@@ -165,7 +244,7 @@ def test_sprite_rendering():
         
         # Show help
         help_lines = [
-            "1: Fireball    2: Ice    3: Lightning",
+            " | ".join([f"{cfg['key']}: {cfg['display_name']}" for cfg in sprite_configs]),
             "S: Save        Q: Quit"
         ]
         
@@ -173,9 +252,9 @@ def test_sprite_rendering():
             cv2.putText(
                 frame,
                 text,
-                (width - 400, 30 + i * 30),
+                (width - 700, 30 + i * 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
+                0.5,
                 (200, 200, 200),
                 1
             )
@@ -188,15 +267,11 @@ def test_sprite_rendering():
         
         if key == ord('q') or key == ord('Q'):
             break
-        elif key == ord('1'):
-            vfx_manager.trigger_spell('Tiger')
-            print("✨ Triggered Fireball (Tiger)")
-        elif key == ord('2'):
-            vfx_manager.trigger_spell('Dragon')
-            print("❄️  Triggered Ice (Dragon)")
-        elif key == ord('3'):
-            vfx_manager.trigger_spell('Ox')
-            print("⚡ Triggered Lightning (Ox)")
+        elif key in key_mapping:
+            # Dynamically handle spells from key_mapping
+            spell_info = key_mapping[key]
+            vfx_manager.trigger_spell(spell_info['spell_name'])
+            print(f"✨ Triggered {spell_info['display_name']}")
         elif key == ord('s') or key == ord('S'):
             # Save frame
             output_dir = Path(__file__).parent / "output"

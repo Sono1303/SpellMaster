@@ -17,7 +17,6 @@ from config import (
     WINDOW_HEIGHT,
     TARGET_FPS,
     SHOW_FPS,
-    COLOR_BLACK,
 )
 
 from ui_system import UIRenderer

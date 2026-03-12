@@ -28,6 +28,7 @@ class GestureDataCollector:
         self.data_dir = Path(__file__).parent  # data/ directory
         self.csv_file = None
         self.csv_writer = None
+        self.space_pressed_once = False  # Track if space was pressed to start first recording
         
         # Directory paths
         self.csv_output_dir = self.data_dir / "csv"
@@ -220,31 +221,37 @@ class GestureDataCollector:
                     left_coords = processed_coords
             
             # Second pass: process right hand using the same global reference
-            for hand_idx, (hand_landmarks, handedness) in enumerate(
-                zip(results.multi_hand_landmarks, results.multi_handedness)
-            ):
-                hand_label = handedness.classification[0].label
-                
-                if hand_label == "Right":
-                    # Extract landmarks for right hand
-                    landmarks = self.extract_hand_landmarks(hand_landmarks)
-                    landmarks = self.apply_strong_smoothing(landmarks, hand_idx)
+            # Only process if left hand was successfully detected
+            if left_wrist_x is not None and left_palm_size is not None:
+                for hand_idx, (hand_landmarks, handedness) in enumerate(
+                    zip(results.multi_hand_landmarks, results.multi_handedness)
+                ):
+                    hand_label = handedness.classification[0].label
                     
-                    # Process RIGHT hand coordinates relative to LEFT wrist (global origin)
-                    processed_coords = []
-                    for i, (lx, ly) in enumerate(landmarks):
-                        # Relative to left wrist (global origin, NOT to right wrist)
-                        rel_x = lx - left_wrist_x
-                        rel_y = ly - left_wrist_y
+                    if hand_label == "Right":
+                        # Extract landmarks for right hand
+                        landmarks = self.extract_hand_landmarks(hand_landmarks)
+                        landmarks = self.apply_strong_smoothing(landmarks, hand_idx)
                         
-                        # Normalize by left palm size
-                        norm_x = rel_x / left_palm_size
-                        norm_y = rel_y / left_palm_size
+                        # Process RIGHT hand coordinates relative to LEFT wrist (global origin)
+                        processed_coords = []
+                        for i, (lx, ly) in enumerate(landmarks):
+                            # Relative to left wrist (global origin, NOT to right wrist)
+                            rel_x = lx - left_wrist_x
+                            rel_y = ly - left_wrist_y
+                            
+                            # Normalize by left palm size
+                            norm_x = rel_x / left_palm_size
+                            norm_y = rel_y / left_palm_size
+                            
+                            processed_coords.append(norm_x)
+                            processed_coords.append(norm_y)
                         
-                        processed_coords.append(norm_x)
-                        processed_coords.append(norm_y)
-                    
-                    right_coords = processed_coords
+                        right_coords = processed_coords
+            else:
+                # Left hand not detected properly, skip this frame
+                self.skipped_frames += 1
+                return None
         
         # Combine all coordinates
         row.extend(left_coords)
@@ -259,9 +266,13 @@ class GestureDataCollector:
             print("Error: No label set. Press 'N' to set a label first.")
             return
         
+        if self.recording:
+            return  # Already recording
+        
         self.recording = True
         self.frame_count = 0
         self.collected_data = []
+        self.skipped_frames = 0
         
         # Create CSV file
         filename = self.get_next_filename(self.current_label)
@@ -276,7 +287,7 @@ class GestureDataCollector:
     
     def stop_recording(self):
         """Stop recording and save data to CSV."""
-        if self.csv_file is None:
+        if not self.recording or self.csv_file is None:
             return
         
         # Create column names: [Label, x1_L, y1_L, ..., x21_L, y21_L, x1_R, y1_R, ..., x21_R, y21_R]
@@ -414,10 +425,11 @@ class GestureDataCollector:
         
         # Instructions
         instructions = [
-            "S: Start Recording",
+            "SPACE: Start (1st time only)",
+            "S: Start Recording (any time)",
             "N: New Label",
             "+/-: Adjust Smoothing",
-            "P: Pause Countdown",
+            "P: Pause & Reset",
             "Q: Quit"
         ]
         
@@ -495,6 +507,14 @@ class GestureDataCollector:
                 if self.recording:
                     self.stop_recording()
                 break
+            elif key == ord(' '):
+                # Space key: Start recording on first press, require P to start again
+                if not self.recording and not self.space_pressed_once:
+                    self.start_recording()
+                    self.space_pressed_once = True
+                    print("Started recording with SPACE. Press P to pause/reset for next recording.")
+                elif self.space_pressed_once and not self.pause_countdown:
+                    print("Already started once. Press P to pause and reset, then press SPACE again to record next gesture.")
             elif key == ord('s') or key == ord('S'):
                 if not self.recording:
                     self.start_recording()
@@ -504,6 +524,7 @@ class GestureDataCollector:
                     self.stop_recording()
                 self.set_new_label()
                 self.last_activity_time = time.time()  # Reset timer
+                self.space_pressed_once = False  # Reset space press flag for new label
             elif key == ord('+') or key == ord('='):
                 # Increase smoothing
                 self.smoothing_factor = min(1.0, self.smoothing_factor + 0.05)
@@ -513,10 +534,13 @@ class GestureDataCollector:
                 self.smoothing_factor = max(0.0, self.smoothing_factor - 0.05)
                 print(f"Smoothing decreased to: {self.smoothing_factor:.2f}")
             elif key == ord('p') or key == ord('P'):
-                # Pause/resume countdown
+                # Pause/resume countdown and reset space flag
+                if self.recording:
+                    self.stop_recording()
                 self.pause_countdown = not self.pause_countdown
+                self.space_pressed_once = False  # Reset flag to allow space to start again
                 if self.pause_countdown:
-                    print("Countdown PAUSED - adjust and press P to resume")
+                    print("Countdown PAUSED - Press SPACE to record another gesture")
                 else:
                     print("Countdown RESUMED - timer reset")
                     self.last_activity_time = time.time()

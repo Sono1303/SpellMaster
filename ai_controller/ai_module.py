@@ -26,17 +26,21 @@ warnings.filterwarnings('ignore', category=UserWarning, module='google.protobuf'
 class GestureAI:
     """AI handler for gesture recognition using MediaPipe and XGBoost model."""
     
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, debug=False):
         """
         Initialize GestureAI with trained model and MediaPipe Hands.
         
         Args:
             model_path: Path to trained XGBoost model (.pkl file)
                        If None, uses default from config.MODEL_PATH
+            debug: Enable debug logging (optional)
         
         Raises:
             FileNotFoundError: If model file not found
         """
+        # Debug flag
+        self.debug = bool(debug)
+        
         # Set model path
         if model_path is None:
             model_path = MODEL_PATH
