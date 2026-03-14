@@ -398,9 +398,318 @@ class ResourceManager:
                 sprite = resource_manager.get_asset(asset_name)
         """
         return self.tile_config.get(tile_id)
-        """Clear all cached resources to free memory."""
-        self.images.clear()
-        self.sounds.clear()
-        self.fonts.clear()
-        self.asset_cache.clear()
-        self.asset_sizes.clear()
+
+
+# ============================================================================
+# ANIMATION CACHE
+# ============================================================================
+
+class AnimationCache:
+    """
+    Manages animation sequences loaded from JSON configuration (grid-based extraction).
+    
+    Similar to vfx_library.extract_sprites(), this system divides sprite sheets into
+    a regular grid and extracts frames sequentially from a starting position.
+    
+    An animation is defined by:
+    - sprite_sheet: Path to the sprite sheet image
+    - grid_rows: Total number of rows in the sprite sheet grid
+    - grid_cols: Total number of columns in the sprite sheet grid
+    - start_row: Row index to start extracting from (0-indexed)
+    - start_col: Column index to start extracting from (0-indexed)
+    - frame_count: Number of frames to extract
+    
+    FRAME EXTRACTION (Grid-Based):
+    1. Sprite sheet is divided into equal cells: grid_rows × grid_cols
+    2. Each cell size: frame_width = sheet_width / grid_cols, frame_height = sheet_height / grid_rows
+    3. Frames are extracted sequentially: left-to-right, then wrap to next row
+    
+    Example:
+        Sprite sheet: 651×77 pixels, grid: 1 row × 10 cols
+        - Frame size: 651/10 = 65px wide, 77/1 = 77px tall
+        - start_row=0, start_col=0, frame_count=7 → extracts 7 frames from left
+        - start_row=0, start_col=3, frame_count=4 → extracts 4 frames starting at column 3
+    
+    COORDINATE SYSTEM:
+    The sprite sheet grid is addressed as [row][col]:
+    - Top-left corner is [0][0]
+    - Rows increase downward
+    - Columns increase rightward
+    - Frames are extracted left-to-right, wrapping to next row when needed
+    
+    Usage Example:
+        cache = AnimationCache()
+        cache.load_animations_from_json("animations_config.json")
+        
+        # Get animation frames
+        idle_frames = cache.get_animation("wizard", "idle")
+        
+        # Play animation by indexing
+        current_frame_index = 0
+        sprite = idle_frames[current_frame_index]
+        screen.blit(sprite, (x, y))
+    """
+    
+    def __init__(self):
+        """Initialize the AnimationCache."""
+        self.animations: Dict[str, Dict[str, List[pygame.Surface]]] = {}
+        # Structure: animations[entity_name][animation_name] = [frame1, frame2, ...]
+        self.animation_scales: Dict[str, Dict[str, float]] = {}
+        # Structure: animation_scales[entity_name][animation_name] = scale_factor
+        self.spritesheet_cache: Dict[str, pygame.Surface] = {}
+        # Cache loaded sprite sheets to avoid reloading
+    
+    def load_animations_from_json(self, json_path: str) -> bool:
+        """
+        Load all animations from a JSON configuration file (grid-based format).
+        
+        JSON Structure:
+        {
+            "animations": {
+                "wizard": {
+                    "idle": {
+                        "sprite_sheet": "path/to/wizard_idle.png",
+                        "grid_rows": 1,         # Total rows in sprite sheet
+                        "grid_cols": 10,        # Total columns in sprite sheet
+                        "start_row": 0,         # Starting row (0-indexed)
+                        "start_col": 0,         # Starting column (0-indexed)
+                        "frame_count": 7        # Number of frames to extract
+                    },
+                    "cast_spell": {...}
+                },
+                "monster": {...}
+            }
+        }
+        
+        Returns:
+            bool: True if loaded successfully, False otherwise
+            
+        Raises:
+            FileNotFoundError: If JSON file doesn't exist
+            json.JSONDecodeError: If JSON is malformed
+        """
+        json_file = Path(json_path)
+        if not json_file.exists():
+            print(f"✗ Animations JSON not found: {json_path}")
+            return False
+        
+        try:
+            with open(json_file, 'r') as f:
+                data = json.load(f)
+            
+            animations_data = data.get("animations", {})
+            print(f"Loading animations from {len(animations_data)} entities...")
+            
+            for entity_name, entity_animations in animations_data.items():
+                self.animations[entity_name] = {}
+                print(f"\n  Entity: {entity_name}")
+                
+                for anim_name, anim_config in entity_animations.items():
+                    try:
+                        spritesheet_path = anim_config.get("sprite_sheet")
+                        grid_rows = anim_config.get("grid_rows", 1)
+                        grid_cols = anim_config.get("grid_cols", 10)
+                        start_row = anim_config.get("start_row", 0)
+                        start_col = anim_config.get("start_col", 0)
+                        frame_count = anim_config.get("frame_count", 1)
+                        scale = anim_config.get("scale", 1.0)  # Default scale 1.0 (no scaling)
+                        
+                        if not spritesheet_path:
+                            print(f"    ⚠ Invalid config for {anim_name}: missing sprite_sheet")
+                            continue
+                        
+                        # Resolve sprite sheet path relative to JSON file
+                        sheet_path = json_file.parent / spritesheet_path
+                        if not sheet_path.exists():
+                            print(f"    ✗ Sprite sheet not found: {sheet_path}")
+                            continue
+                        
+                        # Load sprite sheet (or get from cache)
+                        sheet_key = str(sheet_path)
+                        if sheet_key not in self.spritesheet_cache:
+                            try:
+                                spritesheet = pygame.image.load(str(sheet_path))
+                                self.spritesheet_cache[sheet_key] = spritesheet
+                                print(f"    ✓ Loaded sprite sheet: {sheet_path.name}")
+                            except pygame.error as e:
+                                print(f"    ✗ Failed to load sprite sheet: {e}")
+                                continue
+                        else:
+                            spritesheet = self.spritesheet_cache[sheet_key]
+                        
+                        # Extract animation frames
+                        frames = self._extract_animation_frames(
+                            spritesheet, grid_rows, grid_cols, start_row, start_col, frame_count
+                        )
+                        
+                        # Apply scale if needed
+                        if scale != 1.0:
+                            frames = self._scale_frames(frames, scale)
+                        
+                        # Store frames and scale metadata
+                        self.animations[entity_name][anim_name] = frames
+                        
+                        if entity_name not in self.animation_scales:
+                            self.animation_scales[entity_name] = {}
+                        self.animation_scales[entity_name][anim_name] = scale
+                        
+                        print(f"    ✓ {anim_name}: {len(frames)} frames (scale: {scale})")
+                    
+                    except Exception as e:
+                        print(f"    ✗ Error loading animation {anim_name}: {e}")
+            
+            return True
+        
+        except json.JSONDecodeError as e:
+            print(f"✗ JSON parse error: {e}")
+            return False
+        except Exception as e:
+            print(f"✗ Error loading animations: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _scale_frames(self, frames: List[pygame.Surface], scale: float) -> List[pygame.Surface]:
+        """
+        Scale all frames by the given factor.
+        
+        Args:
+            frames: List of pygame.Surface frames
+            scale: Scale factor (1.0 = original, 2.0 = 2x larger, 0.5 = half size)
+        
+        Returns:
+            List of scaled pygame.Surface frames
+        """
+        if scale <= 0:
+            scale = 1.0
+        
+        scaled_frames = []
+        for frame in frames:
+            if scale == 1.0:
+                scaled_frames.append(frame)
+            else:
+                new_width = int(frame.get_width() * scale)
+                new_height = int(frame.get_height() * scale)
+                scaled_frame = pygame.transform.scale(frame, (new_width, new_height))
+                scaled_frames.append(scaled_frame)
+        
+        return scaled_frames
+    
+    def _extract_animation_frames(
+        self,
+        spritesheet: pygame.Surface,
+        grid_rows: int,
+        grid_cols: int,
+        start_row: int,
+        start_col: int,
+        frame_count: int
+    ) -> List[pygame.Surface]:
+        """
+        Extract animation frames from a sprite sheet using grid-based division.
+        
+        Similar to vfx_library.extract_sprites(), divides sprite sheet into equal cells
+        based on grid dimensions, then extracts frames sequentially.
+        
+        Args:
+            spritesheet: The sprite sheet surface
+            grid_rows: Total number of rows in the sprite sheet grid
+            grid_cols: Total number of columns in the sprite sheet grid
+            start_row: Starting row index (0-indexed)
+            start_col: Starting column index (0-indexed)
+            frame_count: Number of frames to extract (left-to-right, wrapping down)
+        
+        Returns:
+            List of pygame.Surface for each frame
+            
+        Example:
+            Sprite sheet 651×77px with 1 row, 10 cols:
+            - frame_width = 651 / 10 = 65px
+            - frame_height = 77 / 1 = 77px
+            - start_row=0, start_col=0, frame_count=7 extracts 7 frames from left
+        """
+        frames = []
+        
+        # Calculate frame dimensions from grid
+        frame_width = spritesheet.get_width() // grid_cols
+        frame_height = spritesheet.get_height() // grid_rows
+        
+        if frame_width == 0 or frame_height == 0:
+            print(f"      ✗ Invalid grid: {grid_rows}×{grid_cols} for sheet {spritesheet.get_width()}×{spritesheet.get_height()}")
+            return frames
+        
+        # Extract frames sequentially starting from start_row, start_col
+        for i in range(frame_count):
+            # Calculate current position (left-to-right, wrapping down)
+            linear_pos = start_col + i
+            current_row = start_row + (linear_pos // grid_cols)
+            current_col = linear_pos % grid_cols
+            
+            # Check bounds
+            if current_row >= grid_rows:
+                print(f"      ⚠ Frame {i}: Exceeded grid rows (row {current_row} >= {grid_rows})")
+                break
+            
+            # Convert grid position to pixel coordinates
+            pixel_x = current_col * frame_width
+            pixel_y = current_row * frame_height
+            
+            # Crop frame from sprite sheet
+            frame_surface = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+            frame_surface.blit(spritesheet, (0, 0), pygame.Rect(pixel_x, pixel_y, frame_width, frame_height))
+            frames.append(frame_surface)
+        
+        return frames
+    
+    def get_animation(self, entity_name: str, animation_name: str) -> Optional[List[pygame.Surface]]:
+        """
+        Get an animation sequence by entity and animation name.
+        
+        Args:
+            entity_name: Name of the entity (e.g., "wizard", "monster")
+            animation_name: Name of the animation (e.g., "idle", "cast_spell")
+        
+        Returns:
+            List of pygame.Surface frames, or None if animation not found
+            
+        Example:
+            frames = cache.get_animation("wizard", "idle")
+            if frames:
+                for frame in frames:
+                    screen.blit(frame, (x, y))
+        """
+        return self.animations.get(entity_name, {}).get(animation_name)
+    
+    def get_frame_count(self, entity_name: str, animation_name: str) -> int:
+        """
+        Get the number of frames in an animation.
+        
+        Args:
+            entity_name: Name of the entity
+            animation_name: Name of the animation
+        
+        Returns:
+            Number of frames, or 0 if animation not found
+        """
+        frames = self.get_animation(entity_name, animation_name)
+        return len(frames) if frames else 0
+    
+    def get_scale(self, entity_name: str, animation_name: str) -> float:
+        """
+        Get the scale factor for an animation.
+        
+        Args:
+            entity_name: Name of the entity
+            animation_name: Name of the animation
+        
+        Returns:
+            Scale factor (1.0 = original size, 2.0 = 2x larger), or 1.0 if not found
+        """
+        return self.animation_scales.get(entity_name, {}).get(animation_name, 1.0)
+    
+    def list_entities(self) -> List[str]:
+        """Get list of all loaded entities (wizard, monster, etc)."""
+        return list(self.animations.keys())
+    
+    def list_animations(self, entity_name: str) -> List[str]:
+        """Get list of all animations for a specific entity."""
+        return list(self.animations.get(entity_name, {}).keys())

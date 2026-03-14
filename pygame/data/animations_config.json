@@ -1,0 +1,68 @@
+{
+  "animations": {
+    "wizard": {
+      "idle": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Idle.png",
+        "grid_rows": 1,
+        "grid_cols": 7,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 7,
+        "frame_duration": 0.15,
+        "scale": 2.0
+      },
+      "cast_spell": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Idle.png",
+        "grid_rows": 1,
+        "grid_cols": 10,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 7,
+        "frame_duration": 0.1,
+        "scale": 2.0
+      },
+      "move": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Idle.png",
+        "grid_rows": 1,
+        "grid_cols": 10,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 7,
+        "frame_duration": 0.12,
+        "scale": 2.0
+      }
+    },
+    "monster": {
+      "idle": {
+        "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
+        "grid_rows": 6,
+        "grid_cols": 8,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 6,
+        "frame_duration": 0.15,
+        "scale": 3.0
+      },
+      "attack": {
+        "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
+        "grid_rows": 6,
+        "grid_cols": 8,
+        "start_row": 1,
+        "start_col": 0,
+        "frame_count": 6,
+        "frame_duration": 0.1,
+        "scale": 2.0
+      },
+      "walk": {
+        "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
+        "grid_rows": 6,
+        "grid_cols": 8,
+        "start_row": 2,
+        "start_col": 0,
+        "frame_count": 6,
+        "frame_duration": 0.12,
+        "scale": 2.0
+      }
+    }
+  }
+}

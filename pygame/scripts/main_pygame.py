@@ -24,7 +24,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 # Import configuration and game modules
 from map_data import LEVEL_1_BASE, LEVEL_1_OBJECTS, MAP_DIMENSIONS
 from map_engine import TileManager, TileMap
-from resource_manager import ResourceManager
+from resource_manager import ResourceManager, AnimationCache
+from entity import Player, Monster, EntityState
 
 
 # ============================================================================
@@ -37,6 +38,11 @@ DEBUG_MODE = True  # Set to False to disable coordinate display
 # Global mouse position for debug overlay
 MOUSE_POS = (0, 0)
 DEBUG_FONT = None  # Will be initialized in initialize_pygame()
+
+# Animation and entity management
+ANIMATION_CACHE = None  # Will be initialized in initialize_game_resources()
+PLAYER = None
+MONSTERS = []  # List of monster instances
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -118,11 +124,11 @@ def initialize_pygame() -> pygame.display:
         window_width = int((map_pixel_width + 2 * padding) * scale)
         window_height = int((map_pixel_height + 2 * padding) * scale)
         
-        size_info = f"map: {map_cols}×{map_rows} tiles × {tile_size}px"
+        size_info = f"map: {map_cols}x{map_rows} tiles x {tile_size}px"
         if padding > 0:
             size_info += f" + {padding}px padding"
         if scale != 1.0:
-            size_info += f" × {scale}x scale"
+            size_info += f" x {scale}x scale"
     else:
         # Use fixed size from config
         window_width = 1280
@@ -133,7 +139,7 @@ def initialize_pygame() -> pygame.display:
     screen = pygame.display.set_mode((window_width, window_height))
     pygame.display.set_caption("Ignite: Spell Master - Pygame Engine")
     
-    print(f"✓ Pygame initialized: {window_width}×{window_height}px ({size_info})")
+    print(f"[OK] Pygame initialized: {window_width}x{window_height}px ({size_info})")
     return screen
 
 
@@ -193,6 +199,46 @@ def initialize_game_resources() -> tuple:
         resource_manager=resource_manager  # Pass resource_manager to load sprites by asset name
     )
     
+    # ====== PART 3: LOAD ANIMATIONS ======
+    global ANIMATION_CACHE, PLAYER, MONSTERS
+    
+    ANIMATION_CACHE = AnimationCache()
+    animations_json = PYGAME_DIR / "data" / "animations_config.json"
+    if animations_json.exists():
+        print(f"\nLoading animations from: {animations_json}")
+        ANIMATION_CACHE.load_animations_from_json(str(animations_json))
+    else:
+        print(f"⚠ Animations JSON not found at: {animations_json}")
+    
+    # ====== PART 4: CREATE GAME ENTITIES ======
+    print("\nInitializing game entities...")
+    
+    # Create player (wizard)
+    PLAYER = Player(
+        x=320,  # Starting position in pixels
+        y=240,
+        animation_cache=ANIMATION_CACHE,
+        name="Wizard"
+    )
+    print(f"[OK] Created player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
+    
+    # Create monsters
+    MONSTERS = [
+        Monster(
+            x=800,
+            y=200,
+            animation_cache=ANIMATION_CACHE,
+            monster_type="goblin"
+        ),
+        Monster(
+            x=900,
+            y=350,
+            animation_cache=ANIMATION_CACHE,
+            monster_type="goblin"
+        ),
+    ]
+    print(f"[OK] Created {len(MONSTERS)} monsters")
+    
     print("Game resources initialized")
     return tile_manager, tile_map, resource_manager
 
@@ -227,15 +273,28 @@ def handle_events() -> bool:
     return True
 
 
-def update_game_state(clock: pygame.time.Clock):
+def update_game_state(dt: float):
     """
-    Update game logic and maintain frame rate.
+    Update game logic.
     
     Args:
-        clock: pygame.time.Clock for frame rate control
+        dt: Delta time in seconds since last frame
     """
-    # Control frame rate
-    clock.tick(FPS)
+    # Update player
+    if PLAYER:
+        PLAYER.update(dt)
+    
+    # Update monsters
+    for monster in MONSTERS:
+        # Check aggro on player
+        if PLAYER:
+            monster.check_aggro(PLAYER)
+            
+            # If aggro, move towards player
+            if monster.is_aggro:
+                monster.move_towards(PLAYER, speed=30.0)
+        
+        monster.update(dt)
 
 
 def pixel_to_tile(pixel_x: int, pixel_y: int, tile_size: int = 64) -> tuple:
@@ -290,6 +349,13 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
             else:
                 print(f"Warning: Asset '{asset_name}' not found in cache")
     
+    # Render entities (characters with animations)
+    if PLAYER:
+        PLAYER.draw(screen)
+    
+    for monster in MONSTERS:
+        monster.draw(screen)
+    
     # Render debug overlay - show coordinates on hover
     if DEBUG_MODE and DEBUG_FONT:
         mouse_x, mouse_y = MOUSE_POS
@@ -338,8 +404,11 @@ def main():
             # Handle events
             running = handle_events()
             
+            # Calculate delta time
+            dt = clock.tick(FPS) / 1000.0  # Convert milliseconds to seconds
+            
             # Update game state
-            update_game_state(clock)
+            update_game_state(dt)
             
             # Render frame
             if tile_map is not None:
