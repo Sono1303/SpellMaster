@@ -1,0 +1,62 @@
+{
+  "sprite_sheets": [
+    {
+      "file_path": "../ingame_assets/map/TX Struct.png",
+      "assets": [{ "name": "stone_stair_1", "rect": [223, 29, 66, 99] }]
+    },
+    {
+      "file_path": "../ingame_assets/map/TX Tileset Wall.png",
+      "assets": [
+        { "name": "wall_left", "rect": [286, 29, 10, 98] },
+        { "name": "wall_right", "rect": [342, 29, 11, 100] },
+        { "name": "wall_up_down", "rect": [382, 30, 98, 11] }
+      ]
+    },
+    {
+      "file_path": "../ingame_assets/map/TX Tileset Grass.png",
+      "assets": [
+        { "name": "grass_1", "rect": [0, 0, 127, 125] },
+        { "name": "grass_2", "rect": [125, 0, 129, 125] },
+        { "name": "stone_road_1", "rect": [0, 125, 127, 129] },
+        { "name": "stone_road_2", "rect": [125, 125, 130, 130] }
+      ]
+    }
+  ],
+  "tile_configuration": {
+    "0": {
+      "asset_name": "grass_1",
+      "name": "grass_1",
+      "walkable": true,
+      "color": [100, 200, 100],
+      "defense_modifier": 0.0
+    },
+    "1": {
+      "asset_name": "grass_2",
+      "name": "grass_2",
+      "walkable": true,
+      "color": [100, 200, 100],
+      "defense_modifier": 0.0
+    },
+    "2": {
+      "asset_name": "stone_road_1",
+      "name": "stone_road_1",
+      "walkable": true,
+      "color": [200, 180, 140],
+      "defense_modifier": -0.2
+    },
+    "3": {
+      "asset_name": "stone_road_2",
+      "name": "stone_road_2",
+      "walkable": true,
+      "color": [200, 180, 140],
+      "defense_modifier": -0.2
+    },
+    "-1": {
+      "asset_name": null,
+      "name": "black_void",
+      "walkable": false,
+      "color": [0, 0, 0],
+      "defense_modifier": 0.0
+    }
+  }
+}

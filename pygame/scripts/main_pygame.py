@@ -1,0 +1,377 @@
+"""
+Main Pygame Module - Spell Master Game Loop
+Entry point for the pygame-based game engine. Handles window initialization,
+game loop, and rendering.
+
+Parts:
+    Part 1: Pygame initialization and basic game loop
+    Part 2: Map rendering integration
+"""
+
+import pygame
+import sys
+from pathlib import Path
+
+# Add parent directories to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+PYGAME_DIR = PROJECT_ROOT / "pygame"
+AI_CONTROLLER_DIR = PROJECT_ROOT / "ai_controller"
+SCRIPTS_DIR = PYGAME_DIR / "scripts"
+
+sys.path.insert(0, str(AI_CONTROLLER_DIR))
+sys.path.insert(0, str(SCRIPTS_DIR))
+
+# Import configuration and game modules
+from map_data import LEVEL_1_BASE, LEVEL_1_OBJECTS, MAP_DIMENSIONS
+from map_engine import TileManager, TileMap
+from resource_manager import ResourceManager
+
+
+# ============================================================================
+# GAME CONFIGURATION
+# ============================================================================
+
+FPS = 60  # Target frames per second
+DEBUG_MODE = True  # Set to False to disable coordinate display
+
+# Global mouse position for debug overlay
+MOUSE_POS = (0, 0)
+DEBUG_FONT = None  # Will be initialized in initialize_pygame()
+
+# ============================================================================
+# WINDOW CONFIGURATION (Dynamic from map)
+# ============================================================================
+# Window size is automatically calculated from map dimensions
+# Adjust these settings to scale or pad the window
+
+WINDOW_CONFIG = {
+    "scale": 1.0,           # Scale factor: 1.0 = 100% (original size)
+                            # 0.5 = 50% (smaller), 1.5 = 150% (larger)
+    "padding": 0,           # Extra padding around map edges (pixels)
+    "use_map_size": True,   # True = fit window to map, False = use fixed size
+}
+
+# Tile configuration is now loaded from assets_map.json (tile_configuration section)
+# No longer need hardcoded TILE_IMAGE_MAP - resource_manager handles all tile assets
+# To change tile assets, edit pygame/data/assets_map.json
+
+# Asset directory for tiles - try multiple locations
+TILE_ASSETS_PATHS = [
+    PYGAME_DIR / "assets" / "Texture",      # Primary: Texture folder
+    PYGAME_DIR / "assets" / "game assets",  # Fallback: game assets folder
+    PYGAME_DIR / "assets",       
+    PYGAME_DIR / "ingame_assets" / "map",        
+]
+TILE_ASSETS_DIR = TILE_ASSETS_PATHS[0]  # Use primary path
+
+# Background color (fallback if no tiles load)
+BACKGROUND_COLOR = (34, 139, 34)  # Forest green
+
+
+# ============================================================================
+# INITIALIZATION FUNCTIONS
+# ============================================================================
+
+def initialize_pygame() -> pygame.display:
+    """
+    Initialize Pygame and create the game window.
+    
+    Window size is DYNAMICALLY calculated from actual map data (LEVEL_1_BASE),
+    not from hardcoded MAP_DIMENSIONS. This means if you change the number of
+    rows or columns in the map, the window automatically resizes!
+    
+    Configuration via WINDOW_CONFIG:
+    - scale: Multiply window size (0.5 = 50%, 1.5 = 150%)
+    - padding: Extra pixels around map edges
+    - use_map_size: True = fit to map, False = fixed size
+    
+    Formula:
+        window_width = (actual_map_width * tile_size + 2*padding) * scale
+        window_height = (actual_map_height * tile_size + 2*padding) * scale
+    
+    Returns:
+        pygame.display: The display surface (screen)
+    """
+    # Initialize Pygame first
+    pygame.init()
+    pygame.mixer.init()
+    
+    # Initialize debug font for coordinate display
+    global DEBUG_FONT
+    DEBUG_FONT = pygame.font.Font(None, 20)  # None = default font, size 20
+    
+    # Calculate window size from ACTUAL map data (not hardcoded dimensions)
+    if WINDOW_CONFIG["use_map_size"]:
+        # Get map dimensions from actual data
+        map_rows = len(LEVEL_1_BASE)
+        map_cols = len(LEVEL_1_BASE[0]) if LEVEL_1_BASE else 0
+        tile_size = MAP_DIMENSIONS["tile_size"]
+        
+        # Calculate pixel size from actual map
+        map_pixel_width = map_cols * tile_size
+        map_pixel_height = map_rows * tile_size
+        
+        # Add padding and apply scale
+        padding = WINDOW_CONFIG["padding"]
+        scale = WINDOW_CONFIG["scale"]
+        
+        window_width = int((map_pixel_width + 2 * padding) * scale)
+        window_height = int((map_pixel_height + 2 * padding) * scale)
+        
+        size_info = f"map: {map_cols}×{map_rows} tiles × {tile_size}px"
+        if padding > 0:
+            size_info += f" + {padding}px padding"
+        if scale != 1.0:
+            size_info += f" × {scale}x scale"
+    else:
+        # Use fixed size from config
+        window_width = 1280
+        window_height = 960
+        size_info = "fixed size"
+    
+    # Create the game window
+    screen = pygame.display.set_mode((window_width, window_height))
+    pygame.display.set_caption("Ignite: Spell Master - Pygame Engine")
+    
+    print(f"✓ Pygame initialized: {window_width}×{window_height}px ({size_info})")
+    return screen
+
+
+def initialize_game_resources() -> tuple:
+    """
+    Initialize game resources including tile manager and map.
+    
+    Resources loaded:
+    1. Tile manager for rendering tile-based map
+    2. Tile map with LEVEL_1_BASE data
+    3. Resource manager for sprite assets
+    
+    To load sprite sheets from JSON:
+        # Create a JSON file with sprite sheet definitions
+        # (see sprite_sheets.json.example for format)
+        resource_manager.load_all_assets("path/to/sprite_sheets.json")
+    
+    Returns:
+        tuple: (tile_manager, tile_map, resource_manager)
+    """
+    # Initialize resource manager
+    resource_manager = ResourceManager(TILE_ASSETS_DIR)
+    
+    # Load sprite sheets from JSON definition
+    assets_json = PYGAME_DIR / "data" / "assets_map.json"
+    if assets_json.exists():
+        print(f"Loading sprite assets from: {assets_json}")
+        resource_manager.load_all_assets(str(assets_json))
+    else:
+        print(f"⚠ Sprite assets JSON not found at: {assets_json}")
+    
+    # Initialize tile manager with asset directory and search paths
+    tile_manager = TileManager(
+        asset_dir=TILE_ASSETS_DIR,
+        tile_size=MAP_DIMENSIONS["tile_size"],
+        search_paths=TILE_ASSETS_PATHS[1:]  # Pass fallback paths
+    )
+    
+    # Initialize tilemap with level data
+    # Map dimensions are automatically calculated from LEVEL_1_BASE
+    # (no need to pass map_width/map_height - they're computed dynamically!)
+    
+    # Build tile_id_to_asset_name mapping from resource_manager tile configuration
+    tile_id_to_asset = {}
+    for tile_id, tile_cfg in resource_manager.tile_config.items():
+        asset_name = tile_cfg.get("asset_name")
+        if asset_name:  # Only add if asset_name is defined
+            tile_id_to_asset[tile_id] = asset_name
+    
+    print(f"Tile configuration: {tile_id_to_asset}")
+    
+    tile_map = TileMap(
+        map_data=LEVEL_1_BASE,
+        tile_manager=tile_manager,
+        tile_id_to_file=tile_id_to_asset,  # Now maps to asset names instead of filenames
+        tile_size=MAP_DIMENSIONS["tile_size"],
+        resource_manager=resource_manager  # Pass resource_manager to load sprites by asset name
+    )
+    
+    print("Game resources initialized")
+    return tile_manager, tile_map, resource_manager
+
+
+# ============================================================================
+# GAME LOOP
+# ============================================================================
+
+def handle_events() -> bool:
+    """
+    Handle pygame events and update mouse position.
+    
+    Returns:
+        bool: False if game should quit, True otherwise
+    """
+    global MOUSE_POS
+    
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            print("Quit event received")
+            return False
+        
+        # Handle keyboard input
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                print("ESC key pressed - quitting")
+                return False
+    
+    # Track mouse position for debug overlay
+    MOUSE_POS = pygame.mouse.get_pos()
+    
+    return True
+
+
+def update_game_state(clock: pygame.time.Clock):
+    """
+    Update game logic and maintain frame rate.
+    
+    Args:
+        clock: pygame.time.Clock for frame rate control
+    """
+    # Control frame rate
+    clock.tick(FPS)
+
+
+def pixel_to_tile(pixel_x: int, pixel_y: int, tile_size: int = 64) -> tuple:
+    """
+    Convert pixel coordinates to tile coordinates.
+    
+    Args:
+        pixel_x: X position in pixels
+        pixel_y: Y position in pixels
+        tile_size: Size of one tile in pixels (default 64)
+    
+    Returns:
+        Tuple (tile_x, tile_y)
+    """
+    tile_x = pixel_x // tile_size
+    tile_y = pixel_y // tile_size
+    return (tile_x, tile_y)
+
+
+def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: ResourceManager = None, decorations: list = None):
+    """
+    Render a frame of the game with tile layer and decoration layer.
+    
+    Rendering order (bottom to top):
+    1. Background color
+    2. Tile map (base layer)
+    3. Decorations/objects (overlay layer)
+    4. Debug overlay (if DEBUG_MODE is True)
+    
+    Args:
+        screen: pygame.Surface to render to
+        tile_map: TileMap instance to render
+        resource_manager: ResourceManager for accessing sprite assets (optional)
+        decorations: List of decoration objects with name and pos (optional)
+    """
+    # Clear screen with background color
+    screen.fill(BACKGROUND_COLOR)
+    
+    # Render tile layer (base)
+    tile_map.render(screen, offset_x=0, offset_y=0)
+    
+    # Render decoration/object layer (overlay)
+    if resource_manager and decorations:
+        for decoration in decorations:
+            asset_name = decoration.get("name")
+            pos = decoration.get("pos", (0, 0))
+            
+            # Get sprite asset
+            sprite = resource_manager.get_asset(asset_name)
+            if sprite is not None:
+                screen.blit(sprite, pos)
+            else:
+                print(f"Warning: Asset '{asset_name}' not found in cache")
+    
+    # Render debug overlay - show coordinates on hover
+    if DEBUG_MODE and DEBUG_FONT:
+        mouse_x, mouse_y = MOUSE_POS
+        tile_x, tile_y = pixel_to_tile(mouse_x, mouse_y, MAP_DIMENSIONS["tile_size"])
+        
+        # Create debug text
+        debug_text = f"Pixel: ({mouse_x}, {mouse_y}) | Tile: ({tile_x}, {tile_y})"
+        text_surface = DEBUG_FONT.render(debug_text, True, (255, 255, 0))  # Yellow text
+        
+        # Render with semi-transparent background for better readability
+        text_bg = pygame.Surface((text_surface.get_width() + 10, text_surface.get_height() + 4))
+        text_bg.fill((0, 0, 0))
+        text_bg.set_alpha(180)
+        screen.blit(text_bg, (5, 5))
+        screen.blit(text_surface, (10, 7))
+    
+    # Update display
+    pygame.display.flip()
+
+
+def main():
+    """
+    Main game loop.
+    """
+    try:
+        # ====== PART 1: PYGAME INITIALIZATION ======
+        print("Starting Spell Master Pygame Engine...")
+        screen = initialize_pygame()
+        clock = pygame.time.Clock()
+        
+        # ====== PART 2: INITIALIZE GAME RESOURCES ======
+        print("Loading game resources...")
+        try:
+            tile_manager, tile_map, resource_manager = initialize_game_resources()
+        except Exception as e:
+            print(f"Error loading resources: {e}")
+            print("Continuing with placeholder rendering...")
+            tile_map = None
+        
+        # ====== MAIN GAME LOOP ======
+        print("Entering main game loop...")
+        running = True
+        frame_count = 0
+        
+        while running:
+            # Handle events
+            running = handle_events()
+            
+            # Update game state
+            update_game_state(clock)
+            
+            # Render frame
+            if tile_map is not None:
+                render_frame(screen, tile_map, resource_manager, LEVEL_1_OBJECTS)
+            else:
+                # Fallback: just render background
+                screen.fill(BACKGROUND_COLOR)
+                pygame.display.flip()
+            
+            frame_count += 1
+            
+            # Print performance metrics every 60 frames
+            if frame_count % 60 == 0:
+                fps = clock.get_fps()
+                print(f"Frame {frame_count}: {fps:.0f} FPS")
+        
+        print("Game loop ended - shutting down...")
+        
+    except Exception as e:
+        print(f"Fatal error in main loop: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    finally:
+        # Cleanup
+        pygame.quit()
+        print("Pygame shutdown complete")
+
+
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
+
+if __name__ == "__main__":
+    main()

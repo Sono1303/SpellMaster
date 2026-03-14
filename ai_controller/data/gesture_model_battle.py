@@ -172,29 +172,63 @@ class GestureModelBattle:
             print(f"    F1-Score (Weighted): {f1_weighted:.4f}")
             print(f"    Inference Time: {inference_time_ms:.3f} ms")
     
+    def calculate_balanced_score(self, accuracy, inference_time):
+        """
+        Calculate a balanced score considering both accuracy and inference time.
+        Prioritizes inference time for real-time applications (SpellMaster).
+        
+        Formula: accuracy_score * speed_score
+        - accuracy_score: normalized accuracy (0-1)
+        - speed_score: normalized inverse of inference time
+        """
+        # Normalize accuracy to 0-1 range
+        accuracy_score = accuracy
+        
+        # Normalize inference time: faster = higher score
+        # Using inverse: lower inference time = higher speed score
+        # Reference: 20ms for good responsiveness
+        speed_score = 20.0 / (inference_time + 1.0)  # +1 to avoid division issues
+        speed_score = min(speed_score, 1.0)  # Cap at 1.0
+        
+        # Weight: 70% accuracy, 30% speed (for real-time gesture recognition)
+        balanced_score = (accuracy_score * 0.7) + (speed_score * 0.3)
+        
+        return balanced_score
+    
     def print_comparison_table(self):
-        """Print detailed comparison table."""
+        """Print detailed comparison table with balanced scoring."""
         print("\n" + "=" * 70)
         print("MODEL COMPARISON RESULTS")
         print("=" * 70)
         
-        # Create comparison dataframe
+        # Create comparison dataframe with balanced scores
         comparison_data = []
         for model_name, metrics in self.results.items():
+            balanced_score = self.calculate_balanced_score(
+                metrics['accuracy'],
+                metrics['inference_time']
+            )
             comparison_data.append({
                 'Model': model_name,
                 'Accuracy (%)': f"{metrics['accuracy'] * 100:.2f}",
                 'F1-Score': f"{metrics['f1_score']:.4f}",
-                'Inference Time (ms)': f"{metrics['inference_time']:.3f}"
+                'Inference Time (ms)': f"{metrics['inference_time']:.3f}",
+                'Balanced Score': f"{balanced_score:.4f}"
             })
         
         comparison_df = pd.DataFrame(comparison_data)
         
         print("\n" + comparison_df.to_string(index=False))
         
-        # Find best models
+        # Find models by different criteria
         best_accuracy_model = max(self.results.items(), key=lambda x: x[1]['accuracy'])
         fastest_model = min(self.results.items(), key=lambda x: x[1]['inference_time'])
+        
+        # Find best balanced model (best for real-time applications)
+        best_balanced_model = max(
+            self.results.items(),
+            key=lambda x: self.calculate_balanced_score(x[1]['accuracy'], x[1]['inference_time'])
+        )
         
         print("\n" + "-" * 70)
         print(f"[+] Best Accuracy: {best_accuracy_model[0]}")
@@ -203,7 +237,17 @@ class GestureModelBattle:
         print(f"\n[+] Fastest Model: {fastest_model[0]}")
         print(f"    Inference Time: {fastest_model[1]['inference_time']:.3f} ms")
         
-        return best_accuracy_model
+        print(f"\n[+] Best for Real-Time (Balanced Score): {best_balanced_model[0]}")
+        balanced_score = self.calculate_balanced_score(
+            best_balanced_model[1]['accuracy'],
+            best_balanced_model[1]['inference_time']
+        )
+        print(f"    Accuracy: {best_balanced_model[1]['accuracy'] * 100:.2f}%")
+        print(f"    Inference Time: {best_balanced_model[1]['inference_time']:.3f} ms")
+        print(f"    Balanced Score: {balanced_score:.4f}")
+        print(f"    Reasoning: 70% accuracy weight + 30% speed weight")
+        
+        return best_balanced_model
     
     def plot_comparison(self):
         """Create comparison plots."""
@@ -313,10 +357,22 @@ class GestureModelBattle:
         
         # Overview
         content.append("## Model Performance Summary\n\n")
-        content.append(f"**Best Model:** {best_model_name}\n\n")
+        content.append(f"**Best Model (Balanced Score):** {best_model_name}\n\n")
         content.append(f"**Accuracy:** {self.results[best_model_name]['accuracy'] * 100:.2f}%\n\n")
         content.append(f"**F1-Score (Weighted):** {self.results[best_model_name]['f1_score']:.4f}\n\n")
         content.append(f"**Inference Time:** {self.results[best_model_name]['inference_time']:.3f} ms\n\n")
+        
+        # Balanced score explanation
+        balanced_score = self.calculate_balanced_score(
+            self.results[best_model_name]['accuracy'],
+            self.results[best_model_name]['inference_time']
+        )
+        content.append(f"**Balanced Score:** {balanced_score:.4f}\n\n")
+        content.append("### Selection Logic\n\n")
+        content.append("The best model is selected using a **balanced scoring system** that considers both:")
+        content.append("\n- **Accuracy (70% weight):** Model precision for gesture recognition")
+        content.append("\n- **Speed (30% weight):** Response time for real-time spell casting")
+        content.append("\n\nThis weighted approach optimizes for SpellMaster use case where both accuracy and real-time responsiveness are crucial.\n\n")
         
         # Detailed comparison table
         content.append("## Detailed Model Comparison\n\n")

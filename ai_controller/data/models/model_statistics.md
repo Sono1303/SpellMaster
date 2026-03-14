@@ -1,62 +1,78 @@
 # Gesture Spell Model Comparison Report
 
-**Generated:** 2026-03-07 00:05:00
+**Generated:** 2026-03-12 22:08:09
 
 ## Model Performance Summary
 
-**Best Model:** SVM (RBF)
+**Best Model (Balanced Score):** MLP Neural Network
 
-**Accuracy:** 100.00%
+**Accuracy:** 99.96%
 
-**F1-Score (Weighted):** 1.0000
+**F1-Score (Weighted):** 0.9996
 
-**Inference Time:** 0.860 ms
+**Inference Time:** 1.163 ms
+
+**Balanced Score:** 0.9997
+
+### Selection Logic
+
+The best model is selected using a **balanced scoring system** that considers both:
+- **Accuracy (70% weight):** Model precision for gesture recognition
+- **Speed (30% weight):** Response time for real-time spell casting
+
+This weighted approach optimizes for SpellMaster use case where both accuracy and real-time responsiveness are crucial.
 
 ## Detailed Model Comparison
 
 | Model | Accuracy (%) | F1-Score | Inference Time (ms) |
 |-------|--------------|----------|---------------------|
-| SVM (RBF) (WINNER) | 100.00% | 1.0000 | 0.860 |
-| Random Forest | 99.81% | 0.9981 | 18.441 |
-| K-Nearest Neighbors | 99.81% | 0.9981 | 4.560 |
-| MLP Neural Network | 99.62% | 0.9962 | 0.890 |
+| Random Forest | 99.96% | 0.9996 | 26.610 |
+| MLP Neural Network (WINNER) | 99.96% | 0.9996 | 1.163 |
+| SVM (RBF) | 99.93% | 0.9993 | 1.071 |
+| K-Nearest Neighbors | 99.93% | 0.9993 | 12.359 |
 
 ## Rankings
 
-**Highest Accuracy:** SVM (RBF) (100.00%)
+**Highest Accuracy:** Random Forest (99.96%)
 
-**Fastest Inference:** SVM (RBF) (0.860 ms)
+**Fastest Inference:** SVM (RBF) (1.071 ms)
 
 ## Training Data Statistics
 
-**Total Samples:** 8000
+**Total Samples:** 22753
 
-**Training Set:** 6400 samples (80%)
+**Training Set:** 18202 samples (79%)
 
-**Test Set:** 1600 samples (20%)
+**Test Set:** 4551 samples (20%)
 
 **Number of Features:** 84
 
 ### Label Distribution (Training Set)
 
-- Fire: 1600 samples (25.0%)
-- Earth: 1600 samples (25.0%)
-- Water: 1600 samples (25.0%)
-- Air: 1600 samples (25.0%)
+- Ice: 3040 samples (16.7%)
+- Fire: 2879 samples (15.8%)
+- Dark: 2720 samples (14.9%)
+- Lightning: 2400 samples (13.2%)
+- Air: 2400 samples (13.2%)
+- Earth: 2400 samples (13.2%)
+- Water: 2363 samples (13.0%)
 
 ## Detailed Classification Report (Best Model)
 
 ```
               precision    recall  f1-score   support
 
-         Air       1.00      1.00      1.00       400
-       Earth       1.00      1.00      1.00       400
-        Fire       1.00      1.00      1.00       400
-       Water       1.00      1.00      1.00       400
+         Air       1.00      1.00      1.00       600
+        Dark       1.00      1.00      1.00       680
+       Earth       1.00      1.00      1.00       600
+        Fire       1.00      1.00      1.00       720
+         Ice       1.00      1.00      1.00       760
+   Lightning       1.00      1.00      1.00       600
+       Water       1.00      1.00      1.00       591
 
-    accuracy                           1.00      1600
-   macro avg       1.00      1.00      1.00      1600
-weighted avg       1.00      1.00      1.00      1600
+    accuracy                           1.00      4551
+   macro avg       1.00      1.00      1.00      4551
+weighted avg       1.00      1.00      1.00      4551
 ```
 
 ## Model Descriptions
