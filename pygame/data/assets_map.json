@@ -2,7 +2,10 @@
   "sprite_sheets": [
     {
       "file_path": "../ingame_assets/map/TX Struct.png",
-      "assets": [{ "name": "stone_stair_1", "rect": [223, 29, 66, 99] }]
+      "assets": [
+        { "name": "stone_stair_1", "rect": [223, 29, 66, 99] },
+        { "name": "stone_gate_1", "rect": [415, 128, 65, 64] }
+      ]
     },
     {
       "file_path": "../ingame_assets/map/TX Tileset Wall.png",
@@ -10,6 +13,7 @@
         { "name": "wall_left", "rect": [286, 29, 10, 98] },
         { "name": "wall_right", "rect": [342, 29, 11, 100] },
         { "name": "wall_up_down", "rect": [382, 30, 98, 11] },
+        { "name": "up_stair", "rect": [32, 32, 94, 128] },
         { "name": "medium_thick_wall", "rect": [29, 286, 68, 65] }
       ]
     },
@@ -18,9 +22,27 @@
       "assets": [
         { "name": "grass_1", "rect": [0, 0, 127, 125] },
         { "name": "grass_2", "rect": [125, 0, 129, 125] },
-        { "name": "stone_road_1", "rect": [0, 125, 127, 129] },
-        { "name": "stone_road_2", "rect": [125, 125, 130, 130] }
+        { "name": "stone_road_1", "rect": [0, 126, 63, 128] },
+        { "name": "stone_road_2", "rect": [125, 125, 130, 130] },
+        { "name": "stone_road_3", "rect": [127, 142, 128, 34] }
       ]
+    },
+    {
+      "file_path": "../ingame_assets/map/TX Props.png",
+      "assets": [
+        { "name": "base", "rect": [352, 267, 94, 74] },
+        { "name": "base_stone", "rect": [32, 15, 32, 49] },
+        { "name": "tomb_1", "rect": [225, 301, 29, 43] },
+        { "name": "tomb_2", "rect": [222, 237, 34, 43] },
+        { "name": "energy", "rect": [328, 263, 15, 17] },
+        { "name": "rock", "rect": [0, 427, 61, 45] },
+        { "name": "trunks", "rect": [93, 27, 36, 35] },
+        { "name": "pillar", "rect": [444, 20, 38, 73] }
+      ]
+    },
+    {
+      "file_path": "../ingame_assets/map/TX Plant.png",
+      "assets": [{ "name": "tree_1", "rect": [294, 28, 80, 124] }]
     }
   ],
   "tile_configuration": {
