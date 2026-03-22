@@ -95,89 +95,129 @@ Example:
     {"name": "tree_1", "pos": (100, 150)}
 """
 
+# ============================================================================
+# DECORATION HELPER FUNCTIONS
+# ============================================================================
+
+def decoration(name: str, pos: tuple, collision: bool = True, width: int = 64, height: int = 64) -> dict:
+    """
+    Create a decoration object with optional collision.
+    
+    Args:
+        name: Asset name (must exist in assets_map.json)
+        pos: Pixel position as (x, y) tuple
+        collision: If True, this decoration blocks movement (default: True)
+        width: Width of collision box in pixels (default: 64 = tile size)
+        height: Height of collision box in pixels (default: 64 = tile size)
+    
+    Returns:
+        Dict with decoration data for rendering and collision detection
+        
+    Example:
+        # Passable decoration (player can walk through)
+        decoration("grass_2", (100, 200), collision=False)
+        
+        # Blocking decoration (wall)
+        decoration("medium_thick_wall", (100, 200), collision=True, width=68, height=65)
+    """
+    return {
+        "name": name,
+        "pos": pos,
+        "collision": collision,
+        "width": width,
+        "height": height
+    }
+
+
 LEVEL_1_OBJECTS = [
-    {"name": "grass_2", "pos": tile_to_pixel(1, 5)},
-    {"name": "grass_2", "pos": tile_to_pixel(1, 6)},
-    {"name": "grass_2", "pos": tile_to_pixel(2, 5)},
-    {"name": "grass_2", "pos": tile_to_pixel(2, 6)},
-    {"name": "grass_2", "pos": tile_to_pixel(10, 1)},
-    {"name": "grass_2", "pos": tile_to_pixel(11, 1)},
-    {"name": "grass_2", "pos": tile_to_pixel(5, 9)},
-    {"name": "grass_2", "pos": tile_to_pixel(6, 9)},
-    {"name": "grass_2", "pos": tile_to_pixel(12, 10)},
-    {"name": "grass_2", "pos": tile_to_pixel(13, 10)},
+    # Grass decorations (passable - players can walk through)
+    decoration("grass_2", tile_to_pixel(1, 5), collision=False),
+    decoration("grass_2", tile_to_pixel(1, 6), collision=False),
+    decoration("grass_2", tile_to_pixel(2, 5), collision=False),
+    decoration("grass_2", tile_to_pixel(2, 6), collision=False),
+    decoration("grass_2", tile_to_pixel(10, 1), collision=False),
+    decoration("grass_2", tile_to_pixel(11, 1), collision=False),
+    decoration("grass_2", tile_to_pixel(5, 9), collision=False),
+    decoration("grass_2", tile_to_pixel(6, 9), collision=False),
+    decoration("grass_2", tile_to_pixel(12, 10), collision=False),
+    decoration("grass_2", tile_to_pixel(13, 10), collision=False),
 
-    {"name": "medium_thick_wall", "pos": (65, 260)},
-    {"name": "medium_thick_wall", "pos": (85, 260)},
-    {"name": "medium_thick_wall", "pos": (183, 260)},
+    # Walls (blocking)
+    decoration("medium_thick_wall", (65, 260), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (85, 260), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (183, 260), collision=False),
 
-    {"name": "medium_thick_wall", "pos": (65, 485)},
-    {"name": "medium_thick_wall", "pos": (85, 485)},
-    {"name": "medium_thick_wall", "pos": (140, 485)},
-    {"name": "medium_thick_wall", "pos": (183, 485)},
+    decoration("medium_thick_wall", (65, 485), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (85, 485), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (140, 485), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (183, 485), collision=True, width=68, height=65),
 
-    {"name": "wall_up_down", "pos": (65, 260)},
-    {"name": "wall_up_down", "pos": (152, 260)},
+    decoration("wall_up_down", (65, 260), collision=True, width=98, height=11),
+    decoration("wall_up_down", (152, 260), collision=True, width=98, height=11),
 
+    # Bottom wall
+    decoration("medium_thick_wall", (58, 705), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(1, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(2, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(3, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(4, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(5, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(6, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(7, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(8, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(9, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(10, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(11, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(12, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(13, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(14, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(15, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(16, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(17, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", tile_to_pixel(18, 11), collision=True, width=68, height=65),
 
-    {"name": "medium_thick_wall", "pos": (58,705)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(1, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(2, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(3, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(4, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(5, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(6, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(7, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(8, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(9, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(10, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(11, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(12, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(13, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(14, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(15, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(16, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(17, 11)},
-    {"name": "medium_thick_wall", "pos": tile_to_pixel(18, 11)},
-    {"name": "up_stair", "pos": tile_to_pixel(2, 4)},
-    {"name": "stone_stair_1", "pos": (142, 318)},
-    {"name": "base", "pos": (127, 253)},
-    {"name": "pillar", "pos": (156, 228)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(4, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(4, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(4, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(4, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(4, 7)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(5, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(5, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(5, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(5, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(5, 7)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(6, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(6, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(6, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(6, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(6, 7)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(7, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(7, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(7, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(7, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(7, 7)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(8, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(8, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(8, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(8, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(8, 7)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(9, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(9, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(9, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(9, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(9, 7)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(10, 3)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(10, 4)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(10, 5)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(10, 6)},
-    {"name": "stone_road_1", "pos": tile_to_pixel(10, 7)},
+    # Stairs and structures
+    decoration("up_stair", tile_to_pixel(2, 4), collision=False, width=94, height=128),
+    decoration("stone_stair_1", (142, 318), collision=False, width=66, height=99),
+    decoration("base", (127, 253), collision=False),
+    decoration("pillar", (156, 228), collision=False, width=38, height=73),
+
+    # Stone roads (passable)
+    decoration("stone_road_1", tile_to_pixel(4, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(4, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(4, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(4, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(4, 7), collision=False),
+    decoration("stone_road_1", tile_to_pixel(5, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(5, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(5, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(5, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(5, 7), collision=False),
+    decoration("stone_road_1", tile_to_pixel(6, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(6, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(6, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(6, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(6, 7), collision=False),
+    decoration("stone_road_1", tile_to_pixel(7, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(7, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(7, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(7, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(7, 7), collision=False),
+    decoration("stone_road_1", tile_to_pixel(8, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(8, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(8, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(8, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(8, 7), collision=False),
+    decoration("stone_road_1", tile_to_pixel(9, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(9, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(9, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(9, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(9, 7), collision=False),
+    decoration("stone_road_1", tile_to_pixel(10, 3), collision=False),
+    decoration("stone_road_1", tile_to_pixel(10, 4), collision=False),
+    decoration("stone_road_1", tile_to_pixel(10, 5), collision=False),
+    decoration("stone_road_1", tile_to_pixel(10, 6), collision=False),
+    decoration("stone_road_1", tile_to_pixel(10, 7), collision=False),
     {"name": "stone_road_1", "pos": tile_to_pixel(11, 3)},
     {"name": "stone_road_1", "pos": tile_to_pixel(11, 4)},
     {"name": "stone_road_1", "pos": tile_to_pixel(11, 5)},
@@ -304,11 +344,6 @@ LEVEL_1_OBJECTS = [
     {"name": "trunks", "pos": tile_to_pixel(10, 10)},
     {"name": "trunks", "pos": (428, 85)},
 
-    {"name": "tomb_1", "pos": tile_to_pixel(16, 1)},
-    {"name": "tomb_1", "pos": tile_to_pixel(16, 1)},
-    {"name": "tomb_2", "pos": tile_to_pixel(17, 10)},
-
-
     {"name": "wall_left", "pos": (58, 60)},
     {"name": "wall_left", "pos": (58, 156)},
     {"name": "wall_left", "pos": (58, 252)},
@@ -351,7 +386,9 @@ LEVEL_1_OBJECTS = [
     {"name": "tree_1", "pos": tile_to_pixel(1, 8)},
     {"name": "tree_1", "pos": tile_to_pixel(1, 2)},
 
-    
+    {"name": "tomb_1", "pos": tile_to_pixel(16, 1)},
+    {"name": "tomb_1", "pos": tile_to_pixel(16, 1)},
+    {"name": "tomb_2", "pos": tile_to_pixel(17, 10)},
     # Add more objects as needed - just update this list!
     # {"name": "tree_1", "pos": tile_to_pixel(15, 2)},
     # {"name": "fence_section", "pos": tile_to_pixel(8, 5)},

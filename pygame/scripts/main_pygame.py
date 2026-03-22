@@ -34,6 +34,7 @@ from entity import Player, Monster, EntityState
 
 FPS = 60  # Target frames per second
 DEBUG_MODE = True  # Set to False to disable coordinate display
+DEBUG_COLLISION = True  # Set to True to enable detailed collision logging
 
 # Global mouse position for debug overlay
 MOUSE_POS = (0, 0)
@@ -273,18 +274,33 @@ def handle_events() -> bool:
     return True
 
 
-def update_game_state(dt: float):
+def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):
     """
     Update game logic.
     
+    Player update sequence:
+    1. handle_input() - Get keyboard commands
+    2. move() - Apply velocity with collision detection
+    3. update() - Advance animation based on movement
+    
     Args:
         dt: Delta time in seconds since last frame
+        tile_map: TileMap instance for collision detection (optional)
+        debug_collision: If True, print collision debug info
+        decorations: List of decoration objects with collision info
     """
-    # Update player
+    # ====== PLAYER UPDATE ======
     if PLAYER:
+        # Step 1: Get player input from keyboard
+        PLAYER.handle_input()
+        
+        # Step 2: Move player with collision detection (tiles + decorations)
+        PLAYER.move(tile_map=tile_map, dt=dt, debug=debug_collision, decorations=decorations)
+        
+        # Step 3: Update animation state based on movement
         PLAYER.update(dt)
     
-    # Update monsters
+    # ====== MONSTER UPDATE ======
     for monster in MONSTERS:
         # Check aggro on player
         if PLAYER:
@@ -295,6 +311,7 @@ def update_game_state(dt: float):
                 monster.move_towards(PLAYER, speed=30.0)
         
         monster.update(dt)
+
 
 
 def pixel_to_tile(pixel_x: int, pixel_y: int, tile_size: int = 64) -> tuple:
@@ -407,8 +424,11 @@ def main():
             # Calculate delta time
             dt = clock.tick(FPS) / 1000.0  # Convert milliseconds to seconds
             
-            # Update game state
-            update_game_state(dt)
+            # Update game state (with tile_map for collision detection)
+            if tile_map is not None:
+                update_game_state(dt, tile_map=tile_map, debug_collision=DEBUG_COLLISION, decorations=LEVEL_1_OBJECTS)
+            else:
+                update_game_state(dt, debug_collision=DEBUG_COLLISION, decorations=LEVEL_1_OBJECTS)
             
             # Render frame
             if tile_map is not None:
@@ -421,9 +441,10 @@ def main():
             frame_count += 1
             
             # Print performance metrics every 60 frames
-            if frame_count % 60 == 0:
-                fps = clock.get_fps()
-                print(f"Frame {frame_count}: {fps:.0f} FPS")
+            # if frame_count % 60 == 0:
+            #     fps = clock.get_fps()
+            #     print(f"Frame {frame_count}: {fps:.0f} FPS")
+
         
         print("Game loop ended - shutting down...")
         

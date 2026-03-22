@@ -17,8 +17,13 @@ class EntityState(Enum):
     """Entity animation states."""
     IDLE = "idle"
     MOVE = "move"
+    WALK_SIDE = "side_walk"
+    WALK_FRONT = "front_walk"
+    WALK_BACK = "back_walk"
     ATTACK = "attack"
+    PRE_CAST = "pre_cast_spell"
     CAST_SPELL = "cast_spell"
+    POST_CAST = "post_cast_spell"
 
 
 class Entity:
@@ -206,6 +211,9 @@ class Player(Entity):
     - Mana for casting spells
     - Experience points
     - Level
+    - Velocity-based movement with keyboard input
+    - Automatic animation switching based on movement
+    - Wall collision detection with wall-sliding
     """
     
     def __init__(
@@ -239,6 +247,264 @@ class Player(Entity):
         self.experience = 0
         self.level = 1
         self.frame_duration = 0.15  # Wizard idle frame duration
+        
+        # Movement properties
+        self.velocity = pygame.math.Vector2(0, 0)  # Velocity vector
+        self.move_speed = 100.0  # Pixels per second
+        self.collision_box_size = 20  # Size of collision box (pixels)
+        
+        # Casting properties
+        self.casting_stage = None  # None, "pre_cast", "casting", or "post_cast"
+        self.space_pressed = False  # Track if space is currently held
+        self.casting_frame_counter = 0  # Frame counter for cast animation phases
+    
+    def handle_input(self):
+        """
+        Handle keyboard input for movement and casting.
+        
+        Movement (Arrow Keys / WASD):
+        - Updates velocity based on input
+        - Combines inputs (diagonal movement supported)
+        - Left/Right movement uses WALK_SIDE animation (no sprite flipping)
+        
+        Casting (Space Key):
+        - Press down: Start pre-cast animation
+        - Hold: Loop cast animation
+        - Release: Play post-cast animation
+        """
+        # Get all keys pressed this frame
+        keys = pygame.key.get_pressed()
+        
+        # ====== MOVEMENT INPUT ======
+        # Reset velocity
+        self.velocity.x = 0
+        self.velocity.y = 0
+        
+        # Check arrow keys and WASD (no facing_left tracking - use side_walk for left/right)
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
+            self.velocity.y = -self.move_speed
+        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            self.velocity.y = self.move_speed
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            self.velocity.x = -self.move_speed
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            self.velocity.x = self.move_speed
+        
+        # ====== CASTING INPUT ======
+        space_now = keys[pygame.K_SPACE]
+        
+        # Detect space key press (not held from last frame)
+        if space_now and not self.space_pressed:
+            # Space just pressed - start pre-cast
+            self._start_casting()
+        
+        # Detect space key release
+        if not space_now and self.space_pressed:
+            # Space just released - transition to post-cast
+            self._finish_casting()
+        
+        self.space_pressed = space_now
+    
+    def move(self, tile_map=None, dt: float = 1.0, debug: bool = False, decorations: list = None):
+        """
+        Move the player based on velocity, with collision detection (tiles + decorations).
+        
+        Performs separate X and Y collision checks for wall-sliding effect.
+        If path is blocked on one axis, player can still move on the other.
+        
+        Args:
+            tile_map: TileMap instance for collision checking
+            dt: Delta time in seconds
+            debug: If True, print collision debug info
+            decorations: List of decoration objects with collision info
+        """
+        if self.velocity.length() == 0:
+            return  # No movement
+        
+        # Calculate potential new position
+        next_x = self.x + self.velocity.x * dt
+        next_y = self.y + self.velocity.y * dt
+        
+        if debug:
+            print(f"[MOVE DEBUG] Current: ({self.x:.1f}, {self.y:.1f}) | Next: ({next_x:.1f}, {next_y:.1f})")
+        
+        # Try to move on X axis (with collision check)
+        if tile_map is None:
+            x_walkable = True
+            x_collision_obj = None
+        else:
+            if debug:
+                print(f"  [X-AXIS] Checking X={next_x:.1f}, Y={self.y:.1f}")
+            
+            # Check both tiles and decorations
+            x_walkable, x_collision_obj = self._check_collision(
+                next_x, self.y, tile_map, decorations, self.collision_box_size, debug
+            )
+        
+        if x_walkable:
+            self.x = next_x
+            if debug:
+                print(f"    -> X movement ALLOWED. New X: {self.x:.1f}")
+        else:
+            if debug:
+                collision_info = f" (blocked by '{x_collision_obj}')" if x_collision_obj else ""
+                print(f"    -> X movement BLOCKED{collision_info}")
+        
+        # Try to move on Y axis (with collision check)
+        # This is checked separately for wall-sliding effect
+        if tile_map is None:
+            y_walkable = True
+            y_collision_obj = None
+        else:
+            if debug:
+                print(f"  [Y-AXIS] Checking X={self.x:.1f}, Y={next_y:.1f}")
+            
+            # Check both tiles and decorations
+            y_walkable, y_collision_obj = self._check_collision(
+                self.x, next_y, tile_map, decorations, self.collision_box_size, debug
+            )
+        
+        if y_walkable:
+            self.y = next_y
+            if debug:
+                print(f"    -> Y movement ALLOWED. New Y: {self.y:.1f}")
+        else:
+            if debug:
+                collision_info = f" (blocked by '{y_collision_obj}')" if y_collision_obj else ""
+                print(f"    -> Y movement BLOCKED{collision_info}")
+    
+    def _check_collision(self, pixel_x: float, pixel_y: float, tile_map, 
+                         decorations: list, collision_box_size: int, debug: bool) -> tuple:
+        """
+        Check collision at position (tiles + decorations).
+        
+        Returns:
+            Tuple (is_walkable: bool, collision_name: str or None)
+        """
+        if hasattr(tile_map, 'is_walkable_with_decorations'):
+            return tile_map.is_walkable_with_decorations(
+                pixel_x, pixel_y, decorations, collision_box_size, debug
+            )
+        else:
+            # Fallback to tile-only collision
+            is_walkable = tile_map.is_walkable_pixel(pixel_x, pixel_y, collision_box_size, debug)
+            return (is_walkable, None)
+    
+    def _get_walk_animation_state(self) -> EntityState:
+        """
+        Determine which walk animation to use based on velocity direction.
+        
+        Returns:
+            EntityState: WALK_SIDE, WALK_FRONT, or WALK_BACK based on movement direction
+            
+        Notes:
+            - Left/Right movement uses WALK_SIDE (sprite not flipped, animation handles direction)
+            - No sprite flipping is used anywhere
+        """
+        if self.velocity.length() == 0:
+            return EntityState.IDLE
+        
+        abs_vx = abs(self.velocity.x)
+        abs_vy = abs(self.velocity.y)
+        
+        # Determine primary direction
+        if abs_vx > abs_vy:
+            # Primarily moving horizontally (left or right)
+            # Always use WALK_SIDE animation - sprite is never flipped
+            return EntityState.WALK_SIDE
+        elif self.velocity.y > 0:
+            # Primarily moving forward/down
+            return EntityState.WALK_FRONT
+        else:
+            # Primarily moving backward/up
+            return EntityState.WALK_BACK
+    
+    def update(self, dt: float):
+        """
+        Update player (handle animation state based on movement and casting).
+        
+        Animation Priority:
+        1. Casting animations (PRE_CAST → CAST_SPELL → POST_CAST)
+        2. Movement animations (WALK_SIDE, WALK_FRONT, WALK_BACK)
+        3. Idle animation
+        
+        Args:
+            dt: Delta time in seconds
+        """
+        # ===== CASTING STATE MACHINE =====
+        if self.casting_stage == "pre_cast":
+            # Ensure state is PRE_CAST
+            if self.state != EntityState.PRE_CAST:
+                self.set_state(EntityState.PRE_CAST, reset_frame=False)
+            
+            # Check if animation finished and space still held
+            current_anim = self.animations.get(EntityState.PRE_CAST.value, [])
+            if current_anim and self.current_frame_index >= len(current_anim) - 1 and self.space_pressed:
+                # Pre-cast finished and space still held - transition to CAST_SPELL (looping)
+                self.casting_stage = "casting"
+                self.set_state(EntityState.CAST_SPELL, reset_frame=True)
+        
+        elif self.casting_stage == "casting":
+            # Ensure state is CAST_SPELL (looping animation)
+            if self.state != EntityState.CAST_SPELL:
+                self.set_state(EntityState.CAST_SPELL, reset_frame=False)
+        
+        elif self.casting_stage == "post_cast":
+            # Ensure state is POST_CAST
+            if self.state != EntityState.POST_CAST:
+                self.set_state(EntityState.POST_CAST, reset_frame=False)
+            
+            # Check if post-cast animation finished
+            current_anim = self.animations.get(EntityState.POST_CAST.value, [])
+            if current_anim and self.current_frame_index >= len(current_anim) - 1:
+                # Post-cast animation finished, return to normal movement/idle
+                self.casting_stage = None
+                if self.velocity.length() > 0:
+                    new_state = self._get_walk_animation_state()
+                    self.set_state(new_state, reset_frame=True)
+                else:
+                    self.set_state(EntityState.IDLE, reset_frame=True)
+        
+        elif self.casting_stage is None:
+            # Not casting - handle movement
+            if self.velocity.length() > 0:
+                # Player is moving - select appropriate walk animation based on direction
+                new_state = self._get_walk_animation_state()
+                if self.state != new_state:
+                    self.set_state(new_state, reset_frame=True)
+            else:
+                # Player is stationary - use IDLE animation
+                if self.state != EntityState.IDLE:
+                    self.set_state(EntityState.IDLE, reset_frame=True)
+        
+        # Call parent update to advance animation frames
+        super().update(dt)
+    
+    def _start_casting(self):
+        """
+        Start the casting sequence.
+        Transitions to PRE_CAST_SPELL animation.
+        """
+        if self.mana > 0:
+            self.casting_stage = "pre_cast"
+            self.set_state(EntityState.PRE_CAST, reset_frame=True)
+            self.casting_frame_counter = 0
+            print(f"{self.name} is casting a spell! Mana: {self.mana}")
+        else:
+            print(f"{self.name} doesn't have enough mana!")
+    
+    def _finish_casting(self):
+        """
+        Finish the casting sequence.
+        Transitions from CAST_SPELL to POST_CAST_SPELL animation.
+        Consumes mana when spell completes.
+        """
+        if self.casting_stage == "casting" or self.casting_stage == "pre_cast":
+            # Spell completes - deduct mana and show post-cast animation
+            self.mana = max(0, self.mana - 0)  # Cost per spell
+            self.casting_stage = "post_cast"
+            self.set_state(EntityState.POST_CAST, reset_frame=True)
+            print(f"{self.name} cast spell! Remaining mana: {self.mana}")
     
     def cast_spell(self):
         """
@@ -247,7 +513,7 @@ class Player(Entity):
         """
         if self.mana > 0:
             self.set_state(EntityState.CAST_SPELL)
-            self.mana -= 20  # Cost per spell
+            self.mana -= 0  # Cost per spell
             print(f"{self.name} is casting a spell! Mana: {self.mana}")
         else:
             print(f"{self.name} doesn't have enough mana!")
@@ -282,6 +548,31 @@ class Player(Entity):
         self.max_mana += 20
         self.mana = self.max_mana
         print(f"{self.name} leveled up to {self.level}!")
+    
+    def draw(self, surface: pygame.Surface):
+        """
+        Draw the player sprite without any flipping.
+        
+        Position (self.x, self.y) never changes.
+        Collision box is always at (self.x, self.y).
+        All movement animations (including WALK_SIDE) handle direction visually.
+        No sprite flipping is used.
+        
+        Args:
+            surface: pygame.Surface to draw to (typically the screen)
+        """
+        # Get current animation frames
+        current_anim = self.animations.get(self.state.value)
+        if not current_anim or len(current_anim) == 0:
+            return
+        
+        # Get current frame
+        frame = current_anim[self.current_frame_index % len(current_anim)]
+        
+        # Draw at entity position - no flipping, no adjustments
+        surface.blit(frame, (int(self.x), int(self.y)))
+
+
 
 
 class Monster(Entity):
