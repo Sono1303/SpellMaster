@@ -22,7 +22,7 @@
       "assets": [
         { "name": "grass_1", "rect": [0, 0, 127, 125] },
         { "name": "grass_2", "rect": [125, 0, 129, 125] },
-        { "name": "stone_road_1", "rect": [0, 126, 63, 128] },
+        { "name": "stone_road_1", "rect": [0, 128, 64, 62] },
         { "name": "stone_road_2", "rect": [125, 125, 130, 130] },
         { "name": "stone_road_3", "rect": [127, 142, 128, 34] }
       ]
@@ -37,7 +37,7 @@
         { "name": "energy", "rect": [328, 263, 15, 17] },
         { "name": "rock", "rect": [0, 427, 61, 45] },
         { "name": "trunks", "rect": [93, 27, 36, 35] },
-        { "name": "pillar", "rect": [444, 20, 38, 73] }
+        { "name": "statue", "rect": [444, 20, 38, 73] }
       ]
     },
     {
@@ -97,7 +97,7 @@
     "medium_thick_wall": { "width": 68, "height": 65 },
     "stone_stair_1": { "width": 66, "height": 99 },
     "base": { "width": 94, "height": 74 },
-    "pillar": { "width": 38, "height": 73 },
+    "statue": { "width": 38, "height": 73 },
     "tree_1": { "width": 80, "height": 124 },
     "stone_road_1": { "width": 64, "height": 64 },
     "grass_2": { "width": 64, "height": 64 },

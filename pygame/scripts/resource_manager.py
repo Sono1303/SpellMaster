@@ -360,7 +360,7 @@ class ResourceManager:
         Get the dimensions of a sprite asset.
         
         This is crucial for correct sprite positioning. Different sprites have
-        different sizes (e.g., 66×99 for stairs, 10×100 for pillars), so you
+        different sizes (e.g., 66×99 for stairs, 10×100 for statues), so you
         need to know the real dimensions to:
         
         1. Calculate drawing position correctly:

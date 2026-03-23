@@ -11,6 +11,7 @@ Classes:
 import pygame
 from typing import Optional, List, Dict
 from enum import Enum
+from pathlib import Path
 
 
 class EntityState(Enum):
@@ -251,7 +252,13 @@ class Player(Entity):
         # Movement properties
         self.velocity = pygame.math.Vector2(0, 0)  # Velocity vector
         self.move_speed = 100.0  # Pixels per second
-        self.collision_box_size = 20  # Size of collision box (pixels)
+
+        # Collision box: offset from (self.x, self.y) and size (rectangle)
+        # Adjust these to align collision with sprite visuals
+        self.collision_width = 20
+        self.collision_height = 35
+        self.collision_offset_x = 65   # px right from sprite top-left
+        self.collision_offset_y = 70   # px down from sprite top-left
         
         # Casting properties
         self.casting_stage = None  # None, "pre_cast", "casting", or "post_cast"
@@ -336,11 +343,13 @@ class Player(Entity):
             if debug:
                 print(f"  [X-AXIS] Checking X={next_x:.1f}, Y={self.y:.1f}")
             
-            # Check both tiles and decorations
+            col_x = next_x + self.collision_offset_x
+            col_y = self.y + self.collision_offset_y
             x_walkable, x_collision_obj = self._check_collision(
-                next_x, self.y, tile_map, decorations, self.collision_box_size, debug
+                col_x, col_y, tile_map, decorations,
+                self.collision_width, self.collision_height, debug
             )
-        
+
         if x_walkable:
             self.x = next_x
             if debug:
@@ -349,19 +358,20 @@ class Player(Entity):
             if debug:
                 collision_info = f" (blocked by '{x_collision_obj}')" if x_collision_obj else ""
                 print(f"    -> X movement BLOCKED{collision_info}")
-        
+
         # Try to move on Y axis (with collision check)
-        # This is checked separately for wall-sliding effect
         if tile_map is None:
             y_walkable = True
             y_collision_obj = None
         else:
             if debug:
                 print(f"  [Y-AXIS] Checking X={self.x:.1f}, Y={next_y:.1f}")
-            
-            # Check both tiles and decorations
+
+            col_x = self.x + self.collision_offset_x
+            col_y = next_y + self.collision_offset_y
             y_walkable, y_collision_obj = self._check_collision(
-                self.x, next_y, tile_map, decorations, self.collision_box_size, debug
+                col_x, col_y, tile_map, decorations,
+                self.collision_width, self.collision_height, debug
             )
         
         if y_walkable:
@@ -373,21 +383,20 @@ class Player(Entity):
                 collision_info = f" (blocked by '{y_collision_obj}')" if y_collision_obj else ""
                 print(f"    -> Y movement BLOCKED{collision_info}")
     
-    def _check_collision(self, pixel_x: float, pixel_y: float, tile_map, 
-                         decorations: list, collision_box_size: int, debug: bool) -> tuple:
+    def _check_collision(self, pixel_x: float, pixel_y: float, tile_map,
+                         decorations: list, col_w: int, col_h: int, debug: bool) -> tuple:
         """
         Check collision at position (tiles + decorations).
-        
+
         Returns:
             Tuple (is_walkable: bool, collision_name: str or None)
         """
         if hasattr(tile_map, 'is_walkable_with_decorations'):
             return tile_map.is_walkable_with_decorations(
-                pixel_x, pixel_y, decorations, collision_box_size, debug
+                pixel_x, pixel_y, decorations, col_w, col_h, debug
             )
         else:
-            # Fallback to tile-only collision
-            is_walkable = tile_map.is_walkable_pixel(pixel_x, pixel_y, collision_box_size, debug)
+            is_walkable = tile_map.is_walkable_pixel(pixel_x, pixel_y, col_w, col_h, debug)
             return (is_walkable, None)
     
     def _get_walk_animation_state(self) -> EntityState:
@@ -616,18 +625,22 @@ class Monster(Entity):
         self.is_aggro = False
         self.frame_duration = 0.2  # Monster idle frame duration
         self.experience_reward = 50
+        self.attack_cooldown = 1.0  # seconds between attacks
+        self.attack_timer = 0.0
     
+    def update(self, dt: float):
+        self.attack_timer = max(0, self.attack_timer - dt)
+        super().update(dt)
+
     def attack(self, target: Entity):
-        """
-        Attack a target entity.
-        
-        Args:
-            target: Entity to attack (usually the player)
-        """
+        """Attack a target entity if cooldown is ready."""
+        if self.attack_timer > 0:
+            return
         if isinstance(target, Entity):
             self.set_state(EntityState.ATTACK)
             target.take_damage(self.attack_damage)
-            print(f"Monster attacks for {self.attack_damage} damage!")
+            self.attack_timer = self.attack_cooldown
+            print(f"Monster attacks {getattr(target, 'name', 'target')} for {self.attack_damage} damage! (HP: {target.health}/{target.max_health})")
     
     def check_aggro(self, target: Entity) -> bool:
         """
@@ -652,7 +665,7 @@ class Monster(Entity):
     def move_towards(self, target: Entity, speed: float = 30.0):
         """
         Move towards a target entity.
-        
+
         Args:
             target: Entity to move towards
             speed: Movement speed in pixels/second
@@ -661,14 +674,133 @@ class Monster(Entity):
             dx = target.x - self.x
             dy = target.y - self.y
             distance = (dx**2 + dy**2) ** 0.5
-            
+
             if distance > 0:
                 # Normalize direction
                 norm_x = dx / distance
                 norm_y = dy / distance
-                
+
                 # Set velocity
                 self.vx = norm_x * speed
                 self.vy = norm_y * speed
-                
+
                 self.set_state(EntityState.MOVE)
+
+
+class Statue(Entity):
+    """
+    Attackable statue entity with HP bar.
+    Monsters target this as their primary objective. HP = 0 → Game Over.
+    """
+
+    def __init__(self, x: float, y: float, resource_manager, max_health: int = 200,
+                 hp_bar_width: int = 70, hp_bar_height: int = 16.8):
+        super().__init__(
+            x=x, y=y,
+            max_health=max_health,
+            entity_name="statue",
+            animation_cache=None,
+            initial_state=EntityState.IDLE
+        )
+        self.resource_manager = resource_manager
+        self.sprite = resource_manager.get_asset("statue")
+
+        # HP bar display size (customizable)
+        self.hp_bar_width = hp_bar_width
+        self.hp_bar_height = hp_bar_height
+
+        # Load and scale HP bar images
+        hp_bar_dir = Path(__file__).parent.parent / "ingame_assets" / "ui" / "statue_hp"
+        self.hp_bar_fill = pygame.image.load(str(hp_bar_dir / "HP.png")).convert_alpha()
+        self.hp_bar_frame = pygame.image.load(str(hp_bar_dir / "HP_Frame.png")).convert_alpha()
+        self.hp_bar_fill = pygame.transform.scale(self.hp_bar_fill, (hp_bar_width, hp_bar_height))
+        self.hp_bar_frame = pygame.transform.scale(self.hp_bar_frame, (hp_bar_width, hp_bar_height))
+
+    def _load_animations(self):
+        pass
+
+    def update(self, dt: float):
+        pass
+
+    def draw(self, surface: pygame.Surface):
+        # Draw statue sprite
+        if self.sprite:
+            surface.blit(self.sprite, (int(self.x), int(self.y)))
+
+        if not self.is_alive():
+            return
+
+        # HP bar position: centered above sprite
+        sprite_w = self.sprite.get_width() if self.sprite else 38
+        bar_x = int(self.x + sprite_w / 2 - self.hp_bar_width / 2)
+        bar_y = int(self.y - self.hp_bar_height - 4)
+
+        # Draw frame first (background)
+        surface.blit(self.hp_bar_frame, (bar_x, bar_y))
+
+        # Draw fill on top, cropped by HP ratio
+        hp_ratio = self.health / self.max_health
+        if hp_ratio > 0:
+            fill_width = int(self.hp_bar_width * hp_ratio)
+            surface.blit(self.hp_bar_fill, (bar_x, bar_y), pygame.Rect(0, 0, fill_width, self.hp_bar_height))
+
+
+class Portal(Entity):
+    """
+    Animated portal that monsters spawn from.
+    Customizable size. Monsters spawn from the center position.
+    """
+
+    def __init__(self, x: float, y: float, animation_cache,
+                 width: int = None, height: int = None):
+        super().__init__(
+            x=x, y=y,
+            max_health=1,
+            entity_name="portal",
+            animation_cache=animation_cache,
+            initial_state=EntityState.IDLE
+        )
+        self.frame_duration = 0.15
+        # If width/height given, force that size. Otherwise use frame size from config scale.
+        self._custom_width = width
+        self._custom_height = height
+        self.portal_width = width or self._get_frame_size()[0]
+        self.portal_height = height or self._get_frame_size()[1]
+
+    def _get_frame_size(self) -> tuple:
+        anim = self.animations.get(self.state.value)
+        if anim and len(anim) > 0:
+            return anim[0].get_size()
+        return (192, 192)
+
+    def update(self, dt: float):
+        self._update_animation_frame(dt)
+        # Keep portal_width/height in sync if using config scale (no custom size)
+        if self._custom_width is None:
+            self.portal_width = self._get_frame_size()[0]
+        if self._custom_height is None:
+            self.portal_height = self._get_frame_size()[1]
+
+    @property
+    def center_x(self) -> float:
+        return self.x + self.portal_width / 2
+
+    @property
+    def center_y(self) -> float:
+        return self.y + self.portal_height / 2
+
+    def draw(self, surface: pygame.Surface):
+        current_anim = self.animations.get(self.state.value)
+        if not current_anim or len(current_anim) == 0:
+            return
+
+        frame = current_anim[self.current_frame_index % len(current_anim)]
+
+        # Only force scale if custom width/height was explicitly set
+        if self._custom_width is not None or self._custom_height is not None:
+            target_w = self._custom_width or frame.get_width()
+            target_h = self._custom_height or frame.get_height()
+            if frame.get_width() != target_w or frame.get_height() != target_h:
+                frame = pygame.transform.scale(frame, (target_w, target_h))
+
+        surface.blit(frame, (int(self.x), int(self.y)))

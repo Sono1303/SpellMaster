@@ -103,17 +103,17 @@
         "frame_duration": 0.15,
         "scale": 3.0
       },
-      "attack": {
+      "walk": {
         "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
         "grid_rows": 6,
         "grid_cols": 8,
         "start_row": 1,
         "start_col": 0,
-        "frame_count": 6,
+        "frame_count": 8,
         "frame_duration": 0.1,
-        "scale": 2.0
+        "scale": 3.0
       },
-      "walk": {
+      "attack_1": {
         "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
         "grid_rows": 6,
         "grid_cols": 8,
@@ -121,7 +121,49 @@
         "start_col": 0,
         "frame_count": 6,
         "frame_duration": 0.12,
-        "scale": 2.0
+        "scale": 3.0
+      },
+      "attack_2": {
+        "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
+        "grid_rows": 6,
+        "grid_cols": 8,
+        "start_row": 3,
+        "start_col": 0,
+        "frame_count": 6,
+        "frame_duration": 0.12,
+        "scale": 3.0
+      },
+      "hurt": {
+        "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
+        "grid_rows": 6,
+        "grid_cols": 8,
+        "start_row": 4,
+        "start_col": 0,
+        "frame_count": 4,
+        "frame_duration": 0.12,
+        "scale": 3.0
+      },
+      "death": {
+        "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
+        "grid_rows": 6,
+        "grid_cols": 8,
+        "start_row": 5,
+        "start_col": 0,
+        "frame_count": 4,
+        "frame_duration": 0.12,
+        "scale": 3.0
+      }
+    },
+    "portal": {
+      "idle": {
+        "sprite_sheet": "../ingame_assets/map/portal/Purple Portal.png",
+        "grid_rows": 3,
+        "grid_cols": 8,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 8,
+        "frame_duration": 0.15,
+        "scale": 5.0
       }
     }
   }

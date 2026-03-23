@@ -239,114 +239,83 @@ class TileMap:
         tile_id = self.get_tile_at(col, row)
         return tile_id in walkable_tiles if tile_id is not None else False
     
-    def is_walkable_pixel(self, pixel_x: float, pixel_y: float, collision_box_size: int = 20, debug: bool = False) -> bool:
+    def is_walkable_pixel(self, pixel_x: float, pixel_y: float,
+                          col_w: int = 20, col_h: int = 20, debug: bool = False) -> bool:
         """
-        Check if position at given pixel coordinates is walkable.
-        
-        Converts pixel coordinates to tile coordinates and checks if that tile
-        allows walking. Uses walkable_tiles list from tile_configuration.
-        
-        Args:
-            pixel_x: X position in pixels
-            pixel_y: Y position in pixels
-            collision_box_size: Size of collision box for entity (used for multi-point check)
-                                Checks center point and 4 corners
-            debug: If True, print detailed collision info
-            
-        Returns:
-            True if position is walkable, False if blocked by obstacle
+        Check if a rectangular collision box at (pixel_x, pixel_y) is on walkable tiles.
+        Checks center + 4 corners.
         """
-        # Convert pixel coordinates to tile coordinates
         center_col = int(pixel_x / self.tile_size)
         center_row = int(pixel_y / self.tile_size)
-        
-        # Check center point
+
         center_tile = self.get_tile_at(center_col, center_row)
         is_center_walkable = self._is_tile_walkable(center_tile)
-        
+
         if debug:
             tile_name = self._get_tile_name(center_tile)
             print(f"  Center ({pixel_x:.0f}, {pixel_y:.0f}) -> Tile ({center_col}, {center_row}): "
                   f"ID={center_tile}, Name='{tile_name}', Walkable={is_center_walkable}")
-        
+
         if not is_center_walkable:
             return False
-        
-        # Check 4 corners of collision box for more accurate collision
-        # This prevents player from squeezing through tight spaces or clipping into objects
+
         corners = [
-            (pixel_x, pixel_y),  # Top-left
-            (pixel_x + collision_box_size, pixel_y),  # Top-right
-            (pixel_x, pixel_y + collision_box_size),  # Bottom-left
-            (pixel_x + collision_box_size, pixel_y + collision_box_size),  # Bottom-right
+            (pixel_x, pixel_y),
+            (pixel_x + col_w, pixel_y),
+            (pixel_x, pixel_y + col_h),
+            (pixel_x + col_w, pixel_y + col_h),
         ]
-        
+
         for i, (corner_x, corner_y) in enumerate(corners):
             corner_col = int(corner_x / self.tile_size)
             corner_row = int(corner_y / self.tile_size)
             corner_tile = self.get_tile_at(corner_col, corner_row)
             is_corner_walkable = self._is_tile_walkable(corner_tile)
-            
+
             if debug:
                 tile_name = self._get_tile_name(corner_tile)
                 corner_names = ["TL", "TR", "BL", "BR"]
                 print(f"    Corner {corner_names[i]} ({corner_x:.0f}, {corner_y:.0f}) -> "
                       f"Tile ({corner_col}, {corner_row}): ID={corner_tile}, Name='{tile_name}', Walkable={is_corner_walkable}")
-            
+
             if not is_corner_walkable:
                 return False
-        
+
         return True
-    
-    def is_walkable_with_decorations(self, pixel_x: float, pixel_y: float, 
-                                     decorations: list = None, 
-                                     collision_box_size: int = 20, 
+
+    def is_walkable_with_decorations(self, pixel_x: float, pixel_y: float,
+                                     decorations: list = None,
+                                     col_w: int = 20, col_h: int = 20,
                                      debug: bool = False) -> tuple:
         """
-        Check if position is walkable, including collision with decoration objects.
-        
-        Args:
-            pixel_x: X position in pixels
-            pixel_y: Y position in pixels
-            decorations: List of decoration objects with collision info
-            collision_box_size: Size of collision box
-            debug: If True, print debug info including decoration collision
-            
+        Check if rectangular collision box is walkable (tiles + decorations).
+
         Returns:
-            Tuple (is_walkable: bool, collision_object_name: str or None)
-                - is_walkable: False if blocked by tile or decoration
-                - collision_object_name: Name of colliding decoration, or None
+            Tuple (is_walkable, collision_object_name or None)
         """
-        # First check tile walkability
-        tile_walkable = self.is_walkable_pixel(pixel_x, pixel_y, collision_box_size, debug=debug)
+        tile_walkable = self.is_walkable_pixel(pixel_x, pixel_y, col_w, col_h, debug=debug)
         if not tile_walkable:
             return (False, None)
-        
-        # Then check decoration collisions
+
         if decorations:
-            # Create collision box
-            collision_box = pygame.Rect(pixel_x, pixel_y, collision_box_size, collision_box_size)
-            
+            collision_box = pygame.Rect(pixel_x, pixel_y, col_w, col_h)
+
             for decoration in decorations:
-                # Check if decoration has collision enabled
-                if not decoration.get('collision', True):  # Default: collision enabled
+                if not decoration.get('collision', False):
                     continue
-                
-                # Get decoration position and size
+
                 deco_pos = decoration.get('pos', (0, 0))
-                deco_width = decoration.get('width', 64)  # Default tile size
+                deco_width = decoration.get('width', 64)
                 deco_height = decoration.get('height', 64)
-                
-                # Create decoration collision box
                 deco_box = pygame.Rect(deco_pos[0], deco_pos[1], deco_width, deco_height)
-                
-                # Check collision
+
                 if collision_box.colliderect(deco_box):
                     deco_name = decoration.get('name', 'unknown')
                     if debug:
                         print(f"    [DECORATION COLLISION] '{deco_name}' at {deco_pos}")
+                        print(f"      Player rect: {collision_box}  |  Deco rect: {deco_box}")
                     return (False, deco_name)
-        
+
         if debug and decorations:
             print(f"    [NO DECORATION COLLISION]")
         

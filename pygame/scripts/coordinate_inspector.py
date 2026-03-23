@@ -45,7 +45,7 @@ ASSET_SEARCH_PATHS = [
 ]
 
 # Default image
-DEFAULT_IMAGE = "TX Props.png"
+DEFAULT_IMAGE = "TX Tileset Grass.png"
 
 # Image display offset on screen
 IMAGE_OFFSET_X = 10
