@@ -31,29 +31,29 @@ def setup_sprite_effects():
             'cols': 4,
             'duration': 60,
             'frame_skip': 2,
-            'scale': 1.5,
+            'scale': 10,
             'key': '1'
         },
         {
-            'name': 'Dragon',
-            'display_name': 'Ice (Dragon)',
-            'file': 'ice.png',
-            'rows': 2,
-            'cols': 5,
+            'name': 'phoenix',
+            'display_name': 'phoenix (Phoenix)',
+            'file': 'phoenix.png',
+            'rows': 1,
+            'cols': 18,
             'duration': 60,
             'frame_skip': 2,
-            'scale': 1.5,
+            'scale': 10,
             'key': '2'
         },
         {
             'name': 'Ox',
-            'display_name': 'Lightning (Ox)',
-            'file': 'feather.png',
-            'rows': 4,
-            'cols': 4,
+            'display_name': 'crystal (Ox)',
+            'file': 'crystal.png',
+            'rows': 1,
+            'cols': 13,
             'duration': 60,
             'frame_skip': 2,
-            'scale': 1.5,
+            'scale': 5,
             'key': '3'
         },
                 {
@@ -101,11 +101,11 @@ def setup_sprite_effects():
                 'key': '7'
             },
             {
-                'name': 'ice2',
+                'name': 'ice',
                 'display_name': 'Ice (Ice)',
-                'file': 'ice2.png',
-                'rows': 7,
-                'cols': 5,
+                'file': 'ice3.png',
+                'rows': 1,
+                'cols': 8,
                 'duration': 60,
                 'frame_skip': 2,
                 'scale': 10,
@@ -121,6 +121,17 @@ def setup_sprite_effects():
                 'frame_skip': 2,
                 'scale': 10,
                 'key': '9'
+            },
+            {
+                'name': 'light',
+                'display_name': 'Light',
+                'file': 'light.png',
+                'rows': 1,
+                'cols': 7,
+                'duration': 60,
+                'frame_skip': 2,
+                'scale': 10,
+                'key': '0'
             },
 
     ]
@@ -191,7 +202,14 @@ def test_sprite_rendering():
         name = config['display_name']
         spell_name = config['name']
         
-        key_mapping[ord(key)] = {
+        # Handle multi-character keys (e.g., '10') - use first character only
+        if len(key) == 1:
+            key_code = ord(key)
+        else:
+            # For multi-character keys like '10', just use the first character
+            key_code = ord(key[0])
+        
+        key_mapping[key_code] = {
             'spell_name': spell_name,
             'display_name': name
         }

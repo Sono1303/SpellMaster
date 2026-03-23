@@ -99,33 +99,36 @@ Example:
 # DECORATION HELPER FUNCTIONS
 # ============================================================================
 
-def decoration(name: str, pos: tuple, collision: bool = True, width: int = 64, height: int = 64) -> dict:
+def decoration(name: str, pos: tuple, collision: bool = True) -> dict:
     """
     Create a decoration object with optional collision.
+    
+    Collision dimensions are loaded from assets_map.json collision_config.
+    The collision box dimensions will be populated by resource_manager
+    when loading assets.
     
     Args:
         name: Asset name (must exist in assets_map.json)
         pos: Pixel position as (x, y) tuple
         collision: If True, this decoration blocks movement (default: True)
-        width: Width of collision box in pixels (default: 64 = tile size)
-        height: Height of collision box in pixels (default: 64 = tile size)
     
     Returns:
         Dict with decoration data for rendering and collision detection
+        {"name": "", "pos": (), "collision": True, "width": 0, "height": 0}
         
     Example:
         # Passable decoration (player can walk through)
         decoration("grass_2", (100, 200), collision=False)
         
-        # Blocking decoration (wall)
-        decoration("medium_thick_wall", (100, 200), collision=True, width=68, height=65)
+        # Blocking decoration (wall) - dimensions from config
+        decoration("medium_thick_wall", (100, 200), collision=True)
     """
     return {
         "name": name,
         "pos": pos,
         "collision": collision,
-        "width": width,
-        "height": height
+        "width": 64,      # Will be overridden by resource_manager
+        "height": 64      # Will be overridden by resource_manager
     }
 
 
@@ -143,44 +146,44 @@ LEVEL_1_OBJECTS = [
     decoration("grass_2", tile_to_pixel(13, 10), collision=False),
 
     # Walls (blocking)
-    decoration("medium_thick_wall", (65, 260), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", (85, 260), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (65, 260), collision=True),
+    decoration("medium_thick_wall", (85, 260), collision=True),
     decoration("medium_thick_wall", (183, 260), collision=False),
 
-    decoration("medium_thick_wall", (65, 485), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", (85, 485), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", (140, 485), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", (183, 485), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (65, 485), collision=True),
+    decoration("medium_thick_wall", (85, 485), collision=True),
+    decoration("medium_thick_wall", (140, 485), collision=True),
+    decoration("medium_thick_wall", (183, 485), collision=True),
 
-    decoration("wall_up_down", (65, 260), collision=True, width=98, height=11),
-    decoration("wall_up_down", (152, 260), collision=True, width=98, height=11),
+    decoration("wall_up_down", (65, 260), collision=True),
+    decoration("wall_up_down", (152, 260), collision=True),
 
     # Bottom wall
-    decoration("medium_thick_wall", (58, 705), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(1, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(2, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(3, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(4, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(5, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(6, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(7, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(8, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(9, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(10, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(11, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(12, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(13, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(14, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(15, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(16, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(17, 11), collision=True, width=68, height=65),
-    decoration("medium_thick_wall", tile_to_pixel(18, 11), collision=True, width=68, height=65),
+    decoration("medium_thick_wall", (58, 705), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(1, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(2, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(3, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(4, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(5, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(6, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(7, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(8, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(9, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(10, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(11, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(12, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(13, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(14, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(15, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(16, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(17, 11), collision=True),
+    decoration("medium_thick_wall", tile_to_pixel(18, 11), collision=True),
 
     # Stairs and structures
-    decoration("up_stair", tile_to_pixel(2, 4), collision=False, width=94, height=128),
-    decoration("stone_stair_1", (142, 318), collision=False, width=66, height=99),
+    decoration("up_stair", tile_to_pixel(2, 4), collision=False),
+    decoration("stone_stair_1", (142, 318), collision=False),
     decoration("base", (127, 253), collision=False),
-    decoration("pillar", (156, 228), collision=False, width=38, height=73),
+    decoration("pillar", (156, 228), collision=False),
 
     # Stone roads (passable)
     decoration("stone_road_1", tile_to_pixel(4, 3), collision=False),
