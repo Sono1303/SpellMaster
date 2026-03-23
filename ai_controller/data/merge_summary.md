@@ -1,9 +1,9 @@
 # Gesture Data Merge Summary
-**Generated:** 2026-03-12 21:48:08
+**Generated:** 2026-03-23 18:22:19
 
 ## Overview
-- **Total samples merged:** 22753
-- **Files successfully merged:** 114
+- **Total samples merged:** 31740
+- **Files successfully merged:** 159
 - **Files skipped:** 0
 - **Output file:** `final_train.csv`
 
@@ -11,13 +11,16 @@
 
 | Gesture | Count | Percentage | Distribution |
 |---------|-------|------------|---------------|
-| Ice | 3800 | 16.7% | ███ |
-| Fire | 3599 | 15.8% | ███ |
-| Dark | 3400 | 14.9% | ██ |
-| Earth | 3000 | 13.2% | ██ |
-| Air | 3000 | 13.2% | ██ |
-| Lightning | 3000 | 13.2% | ██ |
-| Water | 2954 | 13.0% | ██ |
+| Ice | 3800 | 12.0% | ██ |
+| Fire | 3599 | 11.3% | ██ |
+| Dark | 3400 | 10.7% | ██ |
+| Air | 3000 | 9.5% | █ |
+| Crystal | 3000 | 9.5% | █ |
+| Earth | 3000 | 9.5% | █ |
+| Lightning | 3000 | 9.5% | █ |
+| Phoenix | 3000 | 9.5% | █ |
+| Light | 2987 | 9.4% | █ |
+| Water | 2954 | 9.3% | █ |
 
 ## Balance Analysis
 
