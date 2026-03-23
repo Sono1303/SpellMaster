@@ -9,9 +9,15 @@ Classes:
 """
 
 import pygame
+import json
 from typing import Optional, List, Dict
 from enum import Enum
 from pathlib import Path
+
+# Load stat config
+_STAT_CONFIG_PATH = Path(__file__).parent.parent / "data" / "stat_config.json"
+with open(_STAT_CONFIG_PATH, "r") as _f:
+    STAT_CONFIG = json.load(_f)
 
 
 class EntityState(Enum):
@@ -238,38 +244,47 @@ class Player(Entity):
             animation_cache: AnimationCache for animations
             name: Player name (default: "Wizard")
         """
+        cfg = STAT_CONFIG["player"]
+        col = cfg["collision"]
         super().__init__(
             x=x,
             y=y,
-            max_health=100,
+            max_health=cfg["max_health"],
             entity_name="wizard",
             animation_cache=animation_cache,
             initial_state=EntityState.IDLE
         )
-        
+
         self.name = name
-        self.max_mana = 100
+        self.max_mana = cfg["max_mana"]
         self.mana = self.max_mana
         self.experience = 0
         self.level = 1
-        self.frame_duration = 0.15  # Wizard idle frame duration
-        
-        # Movement properties
-        self.velocity = pygame.math.Vector2(0, 0)  # Velocity vector
-        self.move_speed = 100.0  # Pixels per second
+        self.frame_duration = cfg["frame_duration"]
 
-        # Collision box: offset from (self.x, self.y) and size (rectangle)
-        # Adjust these to align collision with sprite visuals
-        self.collision_width = 20
-        self.collision_height = 35
-        self.collision_offset_x = 65   # px right from sprite top-left
-        self.collision_offset_y = 70   # px down from sprite top-left
-        
+        # Movement properties
+        self.velocity = pygame.math.Vector2(0, 0)
+        self.move_speed = cfg["move_speed"]
+
+        # Collision box
+        self.collision_width = col["width"]
+        self.collision_height = col["height"]
+        self.collision_offset_x = col["offset_x"]
+        self.collision_offset_y = col["offset_y"]
+
         # Casting properties
         self.casting_stage = None  # None, "pre_cast", "casting", or "post_cast"
         self.space_pressed = False  # Track if space is currently held
         self.casting_frame_counter = 0  # Frame counter for cast animation phases
-    
+
+    @property
+    def col_x(self) -> float:
+        return self.x + self.collision_offset_x
+
+    @property
+    def col_y(self) -> float:
+        return self.y + self.collision_offset_y
+
     def handle_input(self):
         """
         Handle keyboard input for movement and casting.
@@ -317,37 +332,28 @@ class Player(Entity):
         
         self.space_pressed = space_now
     
-    def move(self, tile_map=None, dt: float = 1.0, debug: bool = False, decorations: list = None):
+    def move(self, tile_map=None, dt: float = 1.0, debug: bool = False, decorations: list = None, monsters: list = None):
         """
-        Move the player based on velocity, with collision detection (tiles + decorations).
-        
+        Move the player based on velocity, with collision detection (tiles + decorations + monsters).
+
         Performs separate X and Y collision checks for wall-sliding effect.
         If path is blocked on one axis, player can still move on the other.
-        
-        Args:
-            tile_map: TileMap instance for collision checking
-            dt: Delta time in seconds
-            debug: If True, print collision debug info
-            decorations: List of decoration objects with collision info
         """
         if self.velocity.length() == 0:
             return  # No movement
-        
+
         # Calculate potential new position
         next_x = self.x + self.velocity.x * dt
         next_y = self.y + self.velocity.y * dt
-        
+
         if debug:
             print(f"[MOVE DEBUG] Current: ({self.x:.1f}, {self.y:.1f}) | Next: ({next_x:.1f}, {next_y:.1f})")
-        
+
         # Try to move on X axis (with collision check)
         if tile_map is None:
             x_walkable = True
             x_collision_obj = None
         else:
-            if debug:
-                print(f"  [X-AXIS] Checking X={next_x:.1f}, Y={self.y:.1f}")
-            
             col_x = next_x + self.collision_offset_x
             col_y = self.y + self.collision_offset_y
             x_walkable, x_collision_obj = self._check_collision(
@@ -355,38 +361,59 @@ class Player(Entity):
                 self.collision_width, self.collision_height, debug
             )
 
+        # Check monster collision on X axis (skip if already overlapping — allow escape)
+        if x_walkable and monsters:
+            cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
+            next_rect = pygame.Rect(next_x + self.collision_offset_x, self.y + self.collision_offset_y,
+                                    self.collision_width, self.collision_height)
+            for m in monsters:
+                if not m.is_alive() or m._dying:
+                    continue
+                monster_rect = pygame.Rect(m.col_x, m.col_y, m.collision_width, m.collision_height)
+                already_overlapping = cur_rect.colliderect(monster_rect)
+                if not already_overlapping and next_rect.colliderect(monster_rect):
+                    x_walkable = False
+                    x_collision_obj = "monster"
+                    break
+
         if x_walkable:
             self.x = next_x
-            if debug:
-                print(f"    -> X movement ALLOWED. New X: {self.x:.1f}")
-        else:
-            if debug:
-                collision_info = f" (blocked by '{x_collision_obj}')" if x_collision_obj else ""
-                print(f"    -> X movement BLOCKED{collision_info}")
+        elif debug:
+            collision_info = f" (blocked by '{x_collision_obj}')" if x_collision_obj else ""
+            print(f"    -> X movement BLOCKED{collision_info}")
 
         # Try to move on Y axis (with collision check)
         if tile_map is None:
             y_walkable = True
             y_collision_obj = None
         else:
-            if debug:
-                print(f"  [Y-AXIS] Checking X={self.x:.1f}, Y={next_y:.1f}")
-
             col_x = self.x + self.collision_offset_x
             col_y = next_y + self.collision_offset_y
             y_walkable, y_collision_obj = self._check_collision(
                 col_x, col_y, tile_map, decorations,
                 self.collision_width, self.collision_height, debug
             )
-        
+
+        # Check monster collision on Y axis (skip if already overlapping — allow escape)
+        if y_walkable and monsters:
+            cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
+            next_rect = pygame.Rect(self.x + self.collision_offset_x, next_y + self.collision_offset_y,
+                                    self.collision_width, self.collision_height)
+            for m in monsters:
+                if not m.is_alive() or m._dying:
+                    continue
+                monster_rect = pygame.Rect(m.col_x, m.col_y, m.collision_width, m.collision_height)
+                already_overlapping = cur_rect.colliderect(monster_rect)
+                if not already_overlapping and next_rect.colliderect(monster_rect):
+                    y_walkable = False
+                    y_collision_obj = "monster"
+                    break
+
         if y_walkable:
             self.y = next_y
-            if debug:
-                print(f"    -> Y movement ALLOWED. New Y: {self.y:.1f}")
-        else:
-            if debug:
-                collision_info = f" (blocked by '{y_collision_obj}')" if y_collision_obj else ""
-                print(f"    -> Y movement BLOCKED{collision_info}")
+        elif debug:
+            collision_info = f" (blocked by '{y_collision_obj}')" if y_collision_obj else ""
+            print(f"    -> Y movement BLOCKED{collision_info}")
     
     def _check_collision(self, pixel_x: float, pixel_y: float, tile_map,
                          decorations: list, col_w: int, col_h: int, debug: bool) -> tuple:
@@ -596,39 +623,39 @@ class Monster(Entity):
     """
 
     def __init__(self, x: float, y: float, animation_cache=None,
-                 monster_type: str = "orc",
-                 collision_width: int = 45, collision_height: int = 45,
-                 collision_offset_x: int = 120, collision_offset_y: int = 130):
+                 monster_type: str = "orc"):
+        cfg = STAT_CONFIG["monsters"].get(monster_type, STAT_CONFIG["monsters"]["orc"])
+        col = cfg["collision"]
         super().__init__(
             x=x, y=y,
-            max_health=30,
+            max_health=cfg["max_health"],
             entity_name="monster",
             animation_cache=animation_cache,
             initial_state=EntityState.IDLE
         )
 
         self.monster_type = monster_type
-        self.attack_damage = 10
-        self.aggro_range = 1500
-        self.attack_range = 60
+        self.attack_damage = cfg["attack_damage"]
+        self.aggro_range = cfg["aggro_range"]
         self.is_aggro = False
-        self.frame_duration = 0.15
-        self.experience_reward = 50
-        self.move_speed = 60.0
+        self.frame_duration = cfg["frame_duration"]
+        self.experience_reward = cfg["experience_reward"]
+        self.move_speed = cfg["move_speed"]
 
         # Attack cooldown
-        self.attack_cooldown = 1.0
+        self.attack_cooldown = cfg["attack_cooldown"]
         self.attack_timer = 0.0
 
-        # Collision box (like Player)
-        self.collision_width = collision_width
-        self.collision_height = collision_height
-        self.collision_offset_x = collision_offset_x
-        self.collision_offset_y = collision_offset_y
+        # Collision box
+        self.collision_width = col["width"]
+        self.collision_height = col["height"]
+        self.collision_offset_x = col["offset_x"]
+        self.collision_offset_y = col["offset_y"]
 
         # Hurt/death state tracking
         self._hurt_timer = 0.0
         self._dying = False
+        self._blocked_by_player = False
         self.flipped = True  # Orc sprite faces right by default, flip to face left
 
     @property
@@ -670,8 +697,8 @@ class Monster(Entity):
         if self._hurt_timer <= 0:
             self._update_animation_frame(dt)
 
-    def move(self, dt: float, tile_map=None, decorations: list = None):
-        """Move monster with tile + decoration collision checking."""
+    def move(self, dt: float, tile_map=None, decorations: list = None, player=None):
+        """Move monster with tile + decoration + player collision checking."""
         if self._hurt_timer > 0 or self._dying:
             return
         if self.vx == 0 and self.vy == 0:
@@ -680,32 +707,82 @@ class Monster(Entity):
         next_x = self.x + self.vx * dt
         next_y = self.y + self.vy * dt
 
-        if tile_map is None:
+        if tile_map is None and player is None:
             self.x = next_x
             self.y = next_y
             return
 
-        # Check X axis
-        col_x = next_x + self.collision_offset_x
-        col_y = self.y + self.collision_offset_y
-        if hasattr(tile_map, 'is_walkable_with_decorations'):
-            x_ok, _ = tile_map.is_walkable_with_decorations(
-                col_x, col_y, decorations, self.collision_width, self.collision_height)
-        else:
-            x_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
+        # Build player rect once
+        player_rect = None
+        if player and player.is_alive():
+            player_rect = pygame.Rect(
+                player.x + player.collision_offset_x, player.y + player.collision_offset_y,
+                player.collision_width, player.collision_height)
+
+        # Check X axis — tiles/decorations
+        x_ok = True
+        if tile_map:
+            col_x = next_x + self.collision_offset_x
+            col_y = self.y + self.collision_offset_y
+            if hasattr(tile_map, 'is_walkable_with_decorations'):
+                x_ok, _ = tile_map.is_walkable_with_decorations(
+                    col_x, col_y, decorations, self.collision_width, self.collision_height)
+            else:
+                x_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
+
+        # Check X axis — player (skip if already overlapping)
+        if x_ok and player_rect:
+            cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
+            already_overlapping = cur_rect.colliderect(player_rect)
+            if not already_overlapping:
+                next_rect = pygame.Rect(
+                    next_x + self.collision_offset_x, self.y + self.collision_offset_y,
+                    self.collision_width, self.collision_height)
+                if next_rect.colliderect(player_rect):
+                    x_ok = False
+                    self._blocked_by_player = True
+
         if x_ok:
             self.x = next_x
 
-        # Check Y axis
-        col_x = self.x + self.collision_offset_x
-        col_y = next_y + self.collision_offset_y
-        if hasattr(tile_map, 'is_walkable_with_decorations'):
-            y_ok, _ = tile_map.is_walkable_with_decorations(
-                col_x, col_y, decorations, self.collision_width, self.collision_height)
-        else:
-            y_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
+        # Check Y axis — tiles/decorations
+        y_ok = True
+        if tile_map:
+            col_x = self.x + self.collision_offset_x
+            col_y = next_y + self.collision_offset_y
+            if hasattr(tile_map, 'is_walkable_with_decorations'):
+                y_ok, _ = tile_map.is_walkable_with_decorations(
+                    col_x, col_y, decorations, self.collision_width, self.collision_height)
+            else:
+                y_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
+
+        # Check Y axis — player (skip if already overlapping)
+        if y_ok and player_rect:
+            cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
+            already_overlapping = cur_rect.colliderect(player_rect)
+            if not already_overlapping:
+                next_rect = pygame.Rect(
+                    self.x + self.collision_offset_x, next_y + self.collision_offset_y,
+                    self.collision_width, self.collision_height)
+                if next_rect.colliderect(player_rect):
+                    y_ok = False
+                    self._blocked_by_player = True
+
         if y_ok:
             self.y = next_y
+
+    def is_touching(self, target: Entity, margin: int = 5) -> bool:
+        """Check if collision boxes are touching or within margin px."""
+        tx = getattr(target, 'col_x', target.x)
+        ty = getattr(target, 'col_y', target.y)
+        tw = max(getattr(target, 'collision_width', 0), 1)
+        th = max(getattr(target, 'collision_height', 0), 1)
+
+        expanded = pygame.Rect(
+            self.col_x - margin, self.col_y - margin,
+            self.collision_width + margin * 2, self.collision_height + margin * 2)
+        target_rect = pygame.Rect(tx, ty, tw, th)
+        return expanded.colliderect(target_rect)
 
     def take_damage(self, amount: int):
         super().take_damage(amount)
@@ -728,7 +805,7 @@ class Monster(Entity):
             self.vy = 0
 
     def move_towards(self, target: Entity, speed: float = None):
-        """Move towards target. Uses walk animation."""
+        """Move straight (horizontal only) towards target."""
         if self._hurt_timer > 0 or self._dying:
             return
         if self.attack_timer > 0:
@@ -736,21 +813,18 @@ class Monster(Entity):
             self.vy = 0
             return
         speed = speed or self.move_speed
-        if isinstance(target, Entity):
-            # Use collision box centers for distance
-            tx = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
-            ty = getattr(target, 'col_y', target.y) + getattr(target, 'collision_height', 0) / 2
-            mx = self.col_x + self.collision_width / 2
-            my = self.col_y + self.collision_height / 2
-
-            dx = tx - mx
-            dy = ty - my
-            distance = (dx**2 + dy**2) ** 0.5
-
-            if distance > 0:
-                self.vx = (dx / distance) * speed
-                self.vy = (dy / distance) * speed
-                self.set_state(EntityState.WALK)
+        tx = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
+        mx = self.col_x + self.collision_width / 2
+        dx = tx - mx
+        if dx < 0:
+            self.vx = -speed
+        elif dx > 0:
+            self.vx = speed
+        else:
+            self.vx = 0
+        self.vy = 0
+        if self.vx != 0:
+            self.set_state(EntityState.WALK)
 
     def distance_to(self, target: Entity) -> float:
         """Distance between collision box centers."""
@@ -779,12 +853,12 @@ class Statue(Entity):
     Monsters target this as their primary objective. HP = 0 → Game Over.
     """
 
-    def __init__(self, x: float, y: float, resource_manager, max_health: int = 200,
-                 hp_bar_width: int = 70, hp_bar_height: int = 16.8,
-                 target_offset_x: int = None, target_offset_y: int = None):
+    def __init__(self, x: float, y: float, resource_manager):
+        cfg = STAT_CONFIG["statue"]
+        hp_bar = cfg["hp_bar"]
         super().__init__(
             x=x, y=y,
-            max_health=max_health,
+            max_health=cfg["max_health"],
             entity_name="statue",
             animation_cache=None,
             initial_state=EntityState.IDLE
@@ -792,23 +866,22 @@ class Statue(Entity):
         self.resource_manager = resource_manager
         self.sprite = resource_manager.get_asset("statue")
 
-        # Target point for monsters (default: bottom center of sprite)
-        sprite_w = self.sprite.get_width() if self.sprite else 38
-        self.target_offset_x = target_offset_x if target_offset_x is not None else sprite_w // 2
-        self.target_offset_y = target_offset_y if target_offset_y is not None else (self.sprite.get_height() if self.sprite else 64)
+        # Target point for monsters
+        self.target_offset_x = cfg["target_offset_x"]
+        self.target_offset_y = cfg["target_offset_y"]
         self.collision_width = 0
         self.collision_height = 0
 
-        # HP bar display size (customizable)
-        self.hp_bar_width = hp_bar_width
-        self.hp_bar_height = hp_bar_height
+        # HP bar display size
+        self.hp_bar_width = hp_bar["width"]
+        self.hp_bar_height = hp_bar["height"]
 
         # Load and scale HP bar images
         hp_bar_dir = Path(__file__).parent.parent / "ingame_assets" / "ui" / "statue_hp"
         self.hp_bar_fill = pygame.image.load(str(hp_bar_dir / "HP.png")).convert_alpha()
         self.hp_bar_frame = pygame.image.load(str(hp_bar_dir / "HP_Frame.png")).convert_alpha()
-        self.hp_bar_fill = pygame.transform.scale(self.hp_bar_fill, (hp_bar_width, hp_bar_height))
-        self.hp_bar_frame = pygame.transform.scale(self.hp_bar_frame, (hp_bar_width, hp_bar_height))
+        self.hp_bar_fill = pygame.transform.scale(self.hp_bar_fill, (self.hp_bar_width, self.hp_bar_height))
+        self.hp_bar_frame = pygame.transform.scale(self.hp_bar_frame, (self.hp_bar_width, self.hp_bar_height))
 
     @property
     def col_x(self) -> float:
@@ -854,8 +927,8 @@ class Portal(Entity):
     """
 
     def __init__(self, x: float, y: float, animation_cache,
-                 width: int = None, height: int = None,
-                 spawn_offset_x: int = None, spawn_offset_y: int = None):
+                 width: int = None, height: int = None):
+        cfg = STAT_CONFIG["portal"]
         super().__init__(
             x=x, y=y,
             max_health=1,
@@ -863,15 +936,15 @@ class Portal(Entity):
             animation_cache=animation_cache,
             initial_state=EntityState.IDLE
         )
-        self.frame_duration = 0.15
+        self.frame_duration = cfg["frame_duration"]
         self._custom_width = width
         self._custom_height = height
         self.portal_width = width or self._get_frame_size()[0]
         self.portal_height = height or self._get_frame_size()[1]
 
-        # Spawn point offset from portal top-left (default: center)
-        self.spawn_offset_x = spawn_offset_x if spawn_offset_x is not None else self.portal_width // 2
-        self.spawn_offset_y = spawn_offset_y if spawn_offset_y is not None else self.portal_height // 2
+        # Spawn point offset from portal top-left
+        self.spawn_offset_x = cfg.get("spawn_offset_x", self.portal_width // 2)
+        self.spawn_offset_y = cfg.get("spawn_offset_y", self.portal_height // 2)
 
     def _get_frame_size(self) -> tuple:
         anim = self.animations.get(self.state.value)

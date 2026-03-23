@@ -1,0 +1,67 @@
+{
+  "player": {
+    "max_health": 100,
+    "max_mana": 100,
+    "move_speed": 100.0,
+    "frame_duration": 0.15,
+    "collision": {
+      "width": 20,
+      "height": 35,
+      "offset_x": 65,
+      "offset_y": 70
+    },
+    "spawn": {
+      "x": 200,
+      "y": 265
+    }
+  },
+
+  "monsters": {
+    "orc": {
+      "max_health": 30,
+      "attack_damage": 10,
+      "move_speed": 60.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.0,
+      "frame_duration": 0.15,
+      "experience_reward": 50,
+      "collision": {
+        "width": 45,
+        "height": 45,
+        "offset_x": 120,
+        "offset_y": 130
+      }
+    }
+  },
+
+  "statue": {
+    "max_health": 200,
+    "target_offset_x": 35,
+    "target_offset_y": 130,
+    "hp_bar": {
+      "width": 70,
+      "height": 16.8
+    },
+    "spawn": {
+      "x": 156,
+      "y": 228
+    }
+  },
+
+  "portal": {
+    "frame_duration": 0.15,
+    "spawn_offset_x": 160,
+    "spawn_offset_y": 180,
+    "spawn": {
+      "x": 1000,
+      "y": 190
+    }
+  },
+
+  "spawner": {
+    "delay": 3.0,
+    "max_monsters": 1
+  },
+
+  "spells": {}
+}

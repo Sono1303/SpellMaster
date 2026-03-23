@@ -21,7 +21,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from map_data import LEVEL_1_BASE, LEVEL_1_OBJECTS, MAP_DIMENSIONS
 from map_engine import TileManager, TileMap
 from resource_manager import ResourceManager, AnimationCache
-from entity import Player, Monster, Statue, Portal, EntityState
+from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
 
 
 # ============================================================================
@@ -29,9 +29,9 @@ from entity import Player, Monster, Statue, Portal, EntityState
 # ============================================================================
 
 FPS = 60
-DEBUG_MODE = True                 # Coordinate overlay on screen
+DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
+DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -43,8 +43,9 @@ STATUE = None
 PORTALS = []
 GAME_OVER = False
 SPAWN_TIMER = 0.0
-SPAWN_DELAY = 3.0
-SPAWNED = False
+SPAWN_DELAY = STAT_CONFIG["spawner"]["delay"]
+SPAWN_MAX = STAT_CONFIG["spawner"]["max_monsters"]
+SPAWN_COUNT = 0
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -147,20 +148,25 @@ def initialize_game_resources() -> tuple:
             decoration.setdefault("width", 64)
             decoration.setdefault("height", 64)
 
+    player_cfg = STAT_CONFIG["player"]
+    portal_cfg = STAT_CONFIG["portal"]
+    statue_cfg = STAT_CONFIG["statue"]
+
     PLAYER = Player(
-        x=320, y=240,
+        x=player_cfg["spawn"]["x"], y=player_cfg["spawn"]["y"],
         animation_cache=ANIMATION_CACHE,
         name="Wizard"
     )
 
-    # Create portals
     PORTALS = [
-        Portal(x=1000, y=190, animation_cache=ANIMATION_CACHE, spawn_offset_x=160, spawn_offset_y=180),
+        Portal(x=portal_cfg["spawn"]["x"], y=portal_cfg["spawn"]["y"],
+               animation_cache=ANIMATION_CACHE),
     ]
 
     MONSTERS = []
 
-    STATUE = Statue(x=156, y=228, resource_manager=resource_manager, max_health=200, target_offset_x=35, target_offset_y=120)
+    STATUE = Statue(x=statue_cfg["spawn"]["x"], y=statue_cfg["spawn"]["y"],
+                    resource_manager=resource_manager)
 
     print(f"[OK] Player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
     print(f"[OK] Portals: {len(PORTALS)}")
@@ -195,7 +201,7 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
 
     if PLAYER:
         PLAYER.handle_input()
-        PLAYER.move(tile_map=tile_map, dt=dt, debug=debug_collision, decorations=decorations)
+        PLAYER.move(tile_map=tile_map, dt=dt, debug=debug_collision, decorations=decorations, monsters=MONSTERS)
         PLAYER.update(dt)
 
     for portal in PORTALS:
@@ -204,27 +210,28 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
     if GAME_OVER:
         return
 
-    # Spawn monster from portal after delay
-    global SPAWN_TIMER, SPAWNED
-    if not SPAWNED and PORTALS:
+    # Spawn monsters from portal on interval
+    global SPAWN_TIMER, SPAWN_COUNT
+    if SPAWN_COUNT < SPAWN_MAX and PORTALS:
         SPAWN_TIMER += dt
         if SPAWN_TIMER >= SPAWN_DELAY:
+            SPAWN_TIMER = 0.0
             portal = PORTALS[0]
             spawn_x = portal.x + portal.spawn_offset_x
             spawn_y = portal.y + portal.spawn_offset_y
-            # Position monster so collision center aligns with spawn point
             m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
             m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
             m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
             MONSTERS.append(m)
-            SPAWNED = True
-            print(f"[SPAWN] Monster collision center at ({m.col_x + m.collision_width/2}, {m.col_y + m.collision_height/2})")
+            SPAWN_COUNT += 1
+            print(f"[SPAWN] Monster {SPAWN_COUNT}/{SPAWN_MAX} at ({spawn_x:.0f}, {spawn_y:.0f})")
 
     for monster in MONSTERS:
         if monster._dying:
             monster.update(dt)
             continue
 
+        monster._blocked_by_player = False
         target = None
         dist_statue = float('inf')
         dist_player = float('inf')
@@ -243,11 +250,7 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
 
         if target:
             monster.is_aggro = True
-            dist_target = monster.distance_to(target)
-            if dist_target < monster.attack_range:
-                monster.attack(target)
-            else:
-                monster.move_towards(target)
+            monster.move_towards(target)
         else:
             monster.is_aggro = False
             monster.vx = 0
@@ -255,7 +258,20 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
             if monster._hurt_timer <= 0:
                 monster.set_state(EntityState.IDLE)
 
-        monster.move(dt, tile_map=tile_map, decorations=decorations)
+        old_x = monster.x
+        monster.move(dt, tile_map=tile_map, decorations=decorations, player=PLAYER)
+
+        # If monster tried to move but was blocked → attack
+        was_blocked = (monster.vx != 0 and monster.x == old_x)
+        if was_blocked and target:
+            monster.vx = 0
+            monster.vy = 0
+            # Blocked by player → attack player instead of statue
+            if monster._blocked_by_player and PLAYER and PLAYER.is_alive():
+                monster.attack(PLAYER)
+            else:
+                monster.attack(target)
+
         monster.update(dt)
 
     # Check Game Over
