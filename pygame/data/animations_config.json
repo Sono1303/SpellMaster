@@ -11,23 +11,83 @@
         "frame_duration": 0.15,
         "scale": 2.0
       },
-      "cast_spell": {
-        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Idle.png",
+      "pre_cast_spell": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Attack.png",
         "grid_rows": 1,
-        "grid_cols": 10,
+        "grid_cols": 11,
         "start_row": 0,
         "start_col": 0,
-        "frame_count": 7,
+        "frame_count": 3,
+        "frame_duration": 0.2,
+        "scale": 2.0
+      },
+      "cast_spell": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Attack.png",
+        "grid_rows": 1,
+        "grid_cols": 11,
+        "start_row": 0,
+        "start_col": 4,
+        "frame_count": 6,
         "frame_duration": 0.1,
         "scale": 2.0
       },
-      "move": {
-        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Idle.png",
+      "post_cast_spell": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Attack.png",
         "grid_rows": 1,
-        "grid_cols": 10,
+        "grid_cols": 11,
+        "start_row": 0,
+        "start_col": 10,
+        "frame_count": 2,
+        "frame_duration": 0.1,
+        "scale": 2.0
+      },
+      "side_walk": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Side_Walk.png",
+        "grid_rows": 1,
+        "grid_cols": 8,
         "start_row": 0,
         "start_col": 0,
-        "frame_count": 7,
+        "frame_count": 8,
+        "frame_duration": 0.12,
+        "scale": 2.0
+      },
+      "front_walk": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Front_Walk.png",
+        "grid_rows": 1,
+        "grid_cols": 8,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 8,
+        "frame_duration": 0.12,
+        "scale": 2.0
+      },
+      "back_walk": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Back_Walk.png",
+        "grid_rows": 1,
+        "grid_cols": 8,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 8,
+        "frame_duration": 0.12,
+        "scale": 2.0
+      },
+      "death": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Death.png",
+        "grid_rows": 1,
+        "grid_cols": 9,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 9,
+        "frame_duration": 0.12,
+        "scale": 2.0
+      },
+      "block": {
+        "sprite_sheet": "../ingame_assets/character/wizard/Wizard_Block.png",
+        "grid_rows": 1,
+        "grid_cols": 11,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count":11,
         "frame_duration": 0.12,
         "scale": 2.0
       }

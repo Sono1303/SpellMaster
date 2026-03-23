@@ -34,6 +34,7 @@ from entity import Player, Monster, EntityState
 
 FPS = 60  # Target frames per second
 DEBUG_MODE = True  # Set to False to disable coordinate display
+DEBUG_COLLISION = True  # Set to True to enable detailed collision logging
 
 # Global mouse position for debug overlay
 MOUSE_POS = (0, 0)
@@ -43,6 +44,7 @@ DEBUG_FONT = None  # Will be initialized in initialize_pygame()
 ANIMATION_CACHE = None  # Will be initialized in initialize_game_resources()
 PLAYER = None
 MONSTERS = []  # List of monster instances
+DEBUG_COLLISION_BOXES = []  # Store collision boxes to draw when debugging
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -213,6 +215,25 @@ def initialize_game_resources() -> tuple:
     # ====== PART 4: CREATE GAME ENTITIES ======
     print("\nInitializing game entities...")
     
+    # Update decorations with collision dimensions from config
+    collision_enabled = 0
+    for decoration in LEVEL_1_OBJECTS:
+        asset_name = decoration.get("name")
+        collision_dims = resource_manager.get_collision_dimensions(asset_name)
+        if collision_dims:
+            decoration["width"], decoration["height"] = collision_dims
+            # If collision dimensions exist and collision not explicitly set, enable it
+            if "collision" not in decoration:
+                decoration["collision"] = True
+                collision_enabled += 1
+        else:
+            # Use defaults if not found in config
+            decoration.setdefault("width", 64)
+            decoration.setdefault("height", 64)
+    
+    print(f"[OK] Updated {len(LEVEL_1_OBJECTS)} decorations with collision dimensions")
+    print(f"[OK] Enabled collision for {collision_enabled} decorations")
+    
     # Create player (wizard)
     PLAYER = Player(
         x=320,  # Starting position in pixels
@@ -273,18 +294,33 @@ def handle_events() -> bool:
     return True
 
 
-def update_game_state(dt: float):
+def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):
     """
     Update game logic.
     
+    Player update sequence:
+    1. handle_input() - Get keyboard commands
+    2. move() - Apply velocity with collision detection
+    3. update() - Advance animation based on movement
+    
     Args:
         dt: Delta time in seconds since last frame
+        tile_map: TileMap instance for collision detection (optional)
+        debug_collision: If True, print collision debug info
+        decorations: List of decoration objects with collision info
     """
-    # Update player
+    # ====== PLAYER UPDATE ======
     if PLAYER:
+        # Step 1: Get player input from keyboard
+        PLAYER.handle_input()
+        
+        # Step 2: Move player with collision detection (tiles + decorations)
+        PLAYER.move(tile_map=tile_map, dt=dt, debug=debug_collision, decorations=decorations)
+        
+        # Step 3: Update animation state based on movement
         PLAYER.update(dt)
     
-    # Update monsters
+    # ====== MONSTER UPDATE ======
     for monster in MONSTERS:
         # Check aggro on player
         if PLAYER:
@@ -295,6 +331,7 @@ def update_game_state(dt: float):
                 monster.move_towards(PLAYER, speed=30.0)
         
         monster.update(dt)
+
 
 
 def pixel_to_tile(pixel_x: int, pixel_y: int, tile_size: int = 64) -> tuple:
@@ -314,6 +351,106 @@ def pixel_to_tile(pixel_x: int, pixel_y: int, tile_size: int = 64) -> tuple:
     return (tile_x, tile_y)
 
 
+def detect_collision_obstacles(entity, decorations: list) -> list:
+    """
+    Detect which decorations are colliding with the entity.
+    
+    Args:
+        entity: Entity object with x, y, collision_box_size (for Player)
+        decorations: List of decoration dicts with collision info
+    
+    Returns:
+        List of decoration dicts that are colliding
+    """
+    colliding = []
+    
+    # Get entity collision box size
+    if hasattr(entity, 'collision_box_size'):
+        entity_size = entity.collision_box_size
+        entity_rect = pygame.Rect(entity.x, entity.y, entity_size, entity_size)
+    elif hasattr(entity, 'width') and hasattr(entity, 'height'):
+        entity_rect = pygame.Rect(entity.x, entity.y, entity.width, entity.height)
+    else:
+        # Default fallback (shouldn't reach here)
+        entity_rect = pygame.Rect(entity.x, entity.y, 20, 20)
+    
+    if DEBUG_COLLISION:
+        print(f"[DETECT] Entity at ({entity.x}, {entity.y}), size {entity_size}x{entity_size}")
+    
+    collision_count = 0
+    collision_enabled_count = 0
+    for i, decoration in enumerate(decorations):
+        has_collision_flag = decoration.get("collision", False)
+        
+        if has_collision_flag:
+            collision_enabled_count += 1
+        
+        if not has_collision_flag:
+            continue
+        
+        deco_x, deco_y = decoration.get("pos", (0, 0))
+        deco_width = decoration.get("width", 64)
+        deco_height = decoration.get("height", 64)
+        
+        deco_rect = pygame.Rect(deco_x, deco_y, deco_width, deco_height)
+        
+        if entity_rect.colliderect(deco_rect):
+            colliding.append(decoration)
+            collision_count += 1
+            if DEBUG_COLLISION:
+                print(f"  ✓ COLLISION: {decoration.get('name')} at ({deco_x}, {deco_y})")
+    
+    if DEBUG_COLLISION:
+        print(f"[DETECT] Collision enabled: {collision_enabled_count}/{len(decorations)} decorations")
+        if collision_count == 0:
+            print(f"[DETECT] No collision detected")
+    
+    return colliding
+
+
+def draw_collision_debug_boxes(screen: pygame.Surface, collision_boxes: list):
+    """
+    Draw debug visualization for collision boxes.
+    
+    Args:
+        screen: pygame.Surface to draw on
+        collision_boxes: List of decoration dicts to draw
+    """
+    if not collision_boxes:
+        print("[DRAW-COLLISION] No collision boxes to draw")
+        return
+    
+    print(f"[DRAW-COLLISION] Drawing {len(collision_boxes)} boxes")
+    
+    # Cyan color for collision boxes (semi-transparent)
+    color = (0, 255, 255)  # Cyan fill
+    alpha = 100
+    border_color = (255, 0, 0)  # Red border
+    
+    for decoration in collision_boxes:
+        pos_x, pos_y = decoration.get("pos", (0, 0))
+        width = decoration.get("width", 64)
+        height = decoration.get("height", 64)
+        asset_name = decoration.get("name", "unknown")
+        
+        print(f"  -> {asset_name} at ({pos_x}, {pos_y}) size {width}x{height}")
+        
+        # Draw filled rectangle with transparency
+        collision_surface = pygame.Surface((width, height))
+        collision_surface.set_alpha(alpha)
+        collision_surface.fill(color)
+        screen.blit(collision_surface, (pos_x, pos_y))
+        
+        # Draw border in RED
+        pygame.draw.rect(screen, border_color, (pos_x, pos_y, width, height), 2)
+        
+        # Draw asset name text
+        if DEBUG_FONT:
+            text_surface = DEBUG_FONT.render(asset_name, True, border_color)
+            screen.blit(text_surface, (pos_x + 2, pos_y + 2))
+
+
+
 def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: ResourceManager = None, decorations: list = None):
     """
     Render a frame of the game with tile layer and decoration layer.
@@ -322,7 +459,8 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     1. Background color
     2. Tile map (base layer)
     3. Decorations/objects (overlay layer)
-    4. Debug overlay (if DEBUG_MODE is True)
+    4. Entities (characters with animations)
+    5. Debug overlay (collision visualization + coordinates)
     
     Args:
         screen: pygame.Surface to render to
@@ -330,6 +468,8 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
         resource_manager: ResourceManager for accessing sprite assets (optional)
         decorations: List of decoration objects with name and pos (optional)
     """
+    print(f"[RENDER-FRAME] DEBUG_MODE={DEBUG_MODE}, PLAYER={PLAYER is not None}, decorations={len(decorations) if decorations else 0}")
+    
     # Clear screen with background color
     screen.fill(BACKGROUND_COLOR)
     
@@ -356,14 +496,36 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     for monster in MONSTERS:
         monster.draw(screen)
     
-    # Render debug overlay - show coordinates on hover
-    if DEBUG_MODE and DEBUG_FONT:
+    # ====== DEBUG VISUALIZATION ======
+    global DEBUG_COLLISION_BOXES
+    if DEBUG_MODE:
+        print(f"[DEBUG] Checking collision: PLAYER={PLAYER is not None}, decorations={decorations is not None and len(decorations) > 0}")
+        # Detect collision obstacles blocking the player
+        if PLAYER and decorations:
+            print(f"[DEBUG] Calling detect_collision_obstacles()")
+            collision_obstacles = detect_collision_obstacles(PLAYER, decorations)
+            print(f"[DEBUG] Collision obstacles found: {len(collision_obstacles)}")
+            # Keep collision boxes visible - update them each frame
+            if collision_obstacles:
+                DEBUG_COLLISION_BOXES = collision_obstacles
+                if DEBUG_COLLISION:
+                    print(f"[RENDER] Updated DEBUG_COLLISION_BOXES: {len(DEBUG_COLLISION_BOXES)} objects")
+            else:
+                # Clear if no collision
+                DEBUG_COLLISION_BOXES = []
+        else:
+            print(f"[DEBUG] Skipped: PLAYER={PLAYER is not None}, decorations={decorations is not None}")
+        
+        # Draw coordinate overlay
         mouse_x, mouse_y = MOUSE_POS
         tile_x, tile_y = pixel_to_tile(mouse_x, mouse_y, MAP_DIMENSIONS["tile_size"])
         
         # Create debug text
         debug_text = f"Pixel: ({mouse_x}, {mouse_y}) | Tile: ({tile_x}, {tile_y})"
-        text_surface = DEBUG_FONT.render(debug_text, True, (255, 255, 0))  # Yellow text
+        if DEBUG_COLLISION_BOXES:
+            debug_text += f" | Collision: {len(DEBUG_COLLISION_BOXES)} object(s)"
+        
+        text_surface = DEBUG_FONT.render(debug_text, True, (255, 255, 0))  # Yellow text for HUD
         
         # Render with semi-transparent background for better readability
         text_bg = pygame.Surface((text_surface.get_width() + 10, text_surface.get_height() + 4))
@@ -371,6 +533,13 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
         text_bg.set_alpha(180)
         screen.blit(text_bg, (5, 5))
         screen.blit(text_surface, (10, 7))
+    
+    # ====== DRAW COLLISION BOXES - AFTER EVERYTHING ELSE ======
+    # This ensures collision boxes appear on top of all layers
+    if DEBUG_MODE and DEBUG_COLLISION_BOXES:
+        if DEBUG_COLLISION:
+            print(f"[RENDER] Drawing {len(DEBUG_COLLISION_BOXES)} collision boxes")
+        draw_collision_debug_boxes(screen, DEBUG_COLLISION_BOXES)
     
     # Update display
     pygame.display.flip()
@@ -407,8 +576,11 @@ def main():
             # Calculate delta time
             dt = clock.tick(FPS) / 1000.0  # Convert milliseconds to seconds
             
-            # Update game state
-            update_game_state(dt)
+            # Update game state (with tile_map for collision detection)
+            if tile_map is not None:
+                update_game_state(dt, tile_map=tile_map, debug_collision=DEBUG_COLLISION, decorations=LEVEL_1_OBJECTS)
+            else:
+                update_game_state(dt, debug_collision=DEBUG_COLLISION, decorations=LEVEL_1_OBJECTS)
             
             # Render frame
             if tile_map is not None:
@@ -421,9 +593,10 @@ def main():
             frame_count += 1
             
             # Print performance metrics every 60 frames
-            if frame_count % 60 == 0:
-                fps = clock.get_fps()
-                print(f"Frame {frame_count}: {fps:.0f} FPS")
+            # if frame_count % 60 == 0:
+            #     fps = clock.get_fps()
+            #     print(f"Frame {frame_count}: {fps:.0f} FPS")
+
         
         print("Game loop ended - shutting down...")
         

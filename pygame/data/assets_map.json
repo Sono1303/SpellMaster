@@ -88,5 +88,23 @@
       "color": [0, 0, 0],
       "defense_modifier": 0.0
     }
+  },
+  "collision_config": {
+    "wall_left": { "width": 10, "height": 98 },
+    "wall_right": { "width": 11, "height": 100 },
+    "wall_up_down": { "width": 98, "height": 11 },
+    "up_stair": { "width": 94, "height": 128 },
+    "medium_thick_wall": { "width": 68, "height": 65 },
+    "stone_stair_1": { "width": 66, "height": 99 },
+    "base": { "width": 94, "height": 74 },
+    "pillar": { "width": 38, "height": 73 },
+    "tree_1": { "width": 80, "height": 124 },
+    "stone_road_1": { "width": 64, "height": 64 },
+    "grass_2": { "width": 64, "height": 64 },
+    "rock": { "width": 61, "height": 45 },
+    "trunks": { "width": 36, "height": 35 },
+    "energy": { "width": 15, "height": 17 },
+    "tomb_1": { "width": 29, "height": 43 },
+    "tomb_2": { "width": 34, "height": 43 }
   }
 }

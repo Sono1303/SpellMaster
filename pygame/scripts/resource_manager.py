@@ -34,6 +34,7 @@ class ResourceManager:
         self.asset_cache: Dict[str, pygame.Surface] = {}  # Sprite cache from JSON
         self.asset_sizes: Dict[str, Tuple[int, int]] = {}  # Store (width, height) for each asset
         self.tile_config: Dict[int, Dict] = {}  # Tile configuration from JSON
+        self.collision_config: Dict[str, Dict] = {}  # Collision dimensions for decorations from JSON
     
     def load_image(self, filename: str, subdir: str = "") -> pygame.Surface:
         """
@@ -313,6 +314,23 @@ class ResourceManager:
                         print(f"  ✗ Error loading tile config for {tile_id_str}: {e}")
                 print()
             
+            # Load collision configuration from JSON
+            collision_config_data = data.get("collision_config", {})
+            if collision_config_data:
+                print("Loading collision configuration...")
+                for asset_name, collision_data in collision_config_data.items():
+                    try:
+                        width = collision_data.get("width", 64)
+                        height = collision_data.get("height", 64)
+                        self.collision_config[asset_name] = {
+                            "width": width,
+                            "height": height,
+                        }
+                        print(f"  ✓ {asset_name}: {width}×{height}px")
+                    except (ValueError, KeyError) as e:
+                        print(f"  ✗ Error loading collision config for '{asset_name}': {e}")
+                print()
+            
             print(f"\n✓ Total assets loaded: {len(self.asset_cache)}\n")
             return True
         
@@ -379,6 +397,22 @@ class ResourceManager:
             List of asset names
         """
         return list(self.asset_cache.keys())
+    
+    def get_collision_dimensions(self, asset_name: str) -> Optional[Tuple[int, int]]:
+        """
+        Get collision dimensions (width, height) for a decoration asset.
+        
+        Args:
+            asset_name: Name of the asset
+            
+        Returns:
+            Tuple (width, height) if found, (64, 64) as default, None if not configured
+        """
+        if asset_name in self.collision_config:
+            config = self.collision_config[asset_name]
+            return (config.get("width", 64), config.get("height", 64))
+        return None
+    
     
     def get_tile_config(self, tile_id: int) -> Optional[Dict]:
         """
