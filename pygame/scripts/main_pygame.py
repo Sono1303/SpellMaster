@@ -31,7 +31,7 @@ from entity import Player, Monster, Statue, Portal, EntityState
 FPS = 60
 DEBUG_MODE = True                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
+DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -42,6 +42,9 @@ MONSTERS = []
 STATUE = None
 PORTALS = []
 GAME_OVER = False
+SPAWN_TIMER = 0.0
+SPAWN_DELAY = 3.0
+SPAWNED = False
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -152,15 +155,12 @@ def initialize_game_resources() -> tuple:
 
     # Create portals
     PORTALS = [
-        Portal(x=1000, y=190, animation_cache=ANIMATION_CACHE),
+        Portal(x=1000, y=190, animation_cache=ANIMATION_CACHE, spawn_offset_x=160, spawn_offset_y=180),
     ]
 
-    MONSTERS = [
-        Monster(x=800, y=200, animation_cache=ANIMATION_CACHE, monster_type="goblin"),
-        Monster(x=900, y=350, animation_cache=ANIMATION_CACHE, monster_type="goblin"),
-    ]
+    MONSTERS = []
 
-    STATUE = Statue(x=156, y=228, resource_manager=resource_manager, max_health=200)
+    STATUE = Statue(x=156, y=228, resource_manager=resource_manager, max_health=200, target_offset_x=35, target_offset_y=120)
 
     print(f"[OK] Player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
     print(f"[OK] Portals: {len(PORTALS)}")
@@ -204,22 +204,36 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
     if GAME_OVER:
         return
 
-    for monster in MONSTERS:
-        target = None
+    # Spawn monster from portal after delay
+    global SPAWN_TIMER, SPAWNED
+    if not SPAWNED and PORTALS:
+        SPAWN_TIMER += dt
+        if SPAWN_TIMER >= SPAWN_DELAY:
+            portal = PORTALS[0]
+            spawn_x = portal.x + portal.spawn_offset_x
+            spawn_y = portal.y + portal.spawn_offset_y
+            # Position monster so collision center aligns with spawn point
+            m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
+            m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
+            m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
+            MONSTERS.append(m)
+            SPAWNED = True
+            print(f"[SPAWN] Monster collision center at ({m.col_x + m.collision_width/2}, {m.col_y + m.collision_height/2})")
 
-        # Priority: statue first, player if closer (blocking path)
+    for monster in MONSTERS:
+        if monster._dying:
+            monster.update(dt)
+            continue
+
+        target = None
         dist_statue = float('inf')
         dist_player = float('inf')
 
         if STATUE and STATUE.is_alive():
-            dx = monster.x - STATUE.x
-            dy = monster.y - STATUE.y
-            dist_statue = (dx**2 + dy**2) ** 0.5
+            dist_statue = monster.distance_to(STATUE)
 
         if PLAYER and PLAYER.is_alive():
-            dx = monster.x - PLAYER.x
-            dy = monster.y - PLAYER.y
-            dist_player = (dx**2 + dy**2) ** 0.5
+            dist_player = monster.distance_to(PLAYER)
 
         # Player blocks path if closer than statue and within aggro range
         if dist_player < dist_statue and dist_player < monster.aggro_range:
@@ -229,14 +243,19 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
 
         if target:
             monster.is_aggro = True
-            monster.move_towards(target, speed=30.0)
-            # Attack when close enough
-            dist_target = dist_player if target is PLAYER else dist_statue
-            if dist_target < 40:
+            dist_target = monster.distance_to(target)
+            if dist_target < monster.attack_range:
                 monster.attack(target)
+            else:
+                monster.move_towards(target)
         else:
             monster.is_aggro = False
+            monster.vx = 0
+            monster.vy = 0
+            if monster._hurt_timer <= 0:
+                monster.set_state(EntityState.IDLE)
 
+        monster.move(dt, tile_map=tile_map, decorations=decorations)
         monster.update(dt)
 
     # Check Game Over
@@ -336,7 +355,7 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     if DRAW_ALL_COLLISION_BOXES and decorations:
         draw_all_collision_boxes(screen, decorations)
 
-    # Draw portal boxes (yellow)
+    # Draw portal boxes (yellow) + spawn point (green)
     if DRAW_ALL_COLLISION_BOXES:
         for portal in PORTALS:
             px, py = int(portal.x), int(portal.y)
@@ -345,6 +364,24 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
             if DEBUG_FONT:
                 label = f"portal ({px},{py}) {pw}x{ph}"
                 screen.blit(DEBUG_FONT.render(label, True, (255, 255, 0)), (px, py - 14))
+            # Spawn point marker (green cross)
+            sx = int(portal.x + portal.spawn_offset_x)
+            sy = int(portal.y + portal.spawn_offset_y)
+            pygame.draw.circle(screen, (0, 255, 0), (sx, sy), 6, 2)
+            pygame.draw.line(screen, (0, 255, 0), (sx - 8, sy), (sx + 8, sy), 2)
+            pygame.draw.line(screen, (0, 255, 0), (sx, sy - 8), (sx, sy + 8), 2)
+            if DEBUG_FONT:
+                screen.blit(DEBUG_FONT.render(f"spawn ({sx},{sy})", True, (0, 255, 0)), (sx + 10, sy - 6))
+
+    # Draw statue target point (orange cross)
+    if DRAW_ALL_COLLISION_BOXES and STATUE:
+        tx = int(STATUE.col_x)
+        ty = int(STATUE.col_y)
+        pygame.draw.circle(screen, (255, 165, 0), (tx, ty), 6, 2)
+        pygame.draw.line(screen, (255, 165, 0), (tx - 8, ty), (tx + 8, ty), 2)
+        pygame.draw.line(screen, (255, 165, 0), (tx, ty - 8), (tx, ty + 8), 2)
+        if DEBUG_FONT:
+            screen.blit(DEBUG_FONT.render(f"target ({tx},{ty})", True, (255, 165, 0)), (tx + 10, ty - 6))
 
     # Draw player collision box (cyan)
     if DRAW_ALL_COLLISION_BOXES and PLAYER:
@@ -355,17 +392,11 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     # Draw monster collision boxes (magenta)
     if DRAW_ALL_COLLISION_BOXES:
         for monster in MONSTERS:
-            # Get current frame size as collision reference
-            current_anim = monster.animations.get(monster.state.value)
-            if current_anim and len(current_anim) > 0:
-                frame = current_anim[monster.current_frame_index % len(current_anim)]
-                mw, mh = frame.get_size()
-            else:
-                mw, mh = 40, 40
-            mx, my = int(monster.x), int(monster.y)
+            mx, my = int(monster.col_x), int(monster.col_y)
+            mw, mh = monster.collision_width, monster.collision_height
             pygame.draw.rect(screen, (255, 0, 255), (mx, my, mw, mh), 2)
             if DEBUG_FONT:
-                label = f"({mx},{my}) {mw}x{mh}"
+                label = f"monster ({mx},{my}) {mw}x{mh}"
                 screen.blit(DEBUG_FONT.render(label, True, (255, 0, 255)), (mx, my - 14))
 
     # HUD overlay

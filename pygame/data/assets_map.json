@@ -97,7 +97,7 @@
     "medium_thick_wall": { "width": 68, "height": 65 },
     "stone_stair_1": { "width": 66, "height": 99 },
     "base": { "width": 94, "height": 74 },
-    "statue": { "width": 38, "height": 73 },
+    "statue": { "width": 70, "height": 180 },
     "tree_1": { "width": 80, "height": 124 },
     "stone_road_1": { "width": 64, "height": 64 },
     "grass_2": { "width": 64, "height": 64 },

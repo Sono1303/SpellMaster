@@ -18,10 +18,15 @@ class EntityState(Enum):
     """Entity animation states."""
     IDLE = "idle"
     MOVE = "move"
+    WALK = "walk"
     WALK_SIDE = "side_walk"
     WALK_FRONT = "front_walk"
     WALK_BACK = "back_walk"
     ATTACK = "attack"
+    ATTACK_1 = "attack_1"
+    ATTACK_2 = "attack_2"
+    HURT = "hurt"
+    DEATH = "death"
     PRE_CAST = "pre_cast_spell"
     CAST_SPELL = "cast_spell"
     POST_CAST = "post_cast_spell"
@@ -586,105 +591,186 @@ class Player(Entity):
 
 class Monster(Entity):
     """
-    Monster enemy character.
-    
-    Special properties:
-    - Aggro range (detection range for combat)
-    - Attack damage
-    - Experience reward
+    Monster enemy character with collision box and full animation states.
+    Animations: idle, walk, attack_1, attack_2, hurt, death
     """
-    
-    def __init__(
-        self,
-        x: float,
-        y: float,
-        animation_cache=None,
-        monster_type: str = "goblin"
-    ):
-        """
-        Initialize a Monster.
-        
-        Args:
-            x: Starting X position
-            y: Starting Y position
-            animation_cache: AnimationCache for animations
-            monster_type: Type of monster (default: "goblin")
-        """
+
+    def __init__(self, x: float, y: float, animation_cache=None,
+                 monster_type: str = "orc",
+                 collision_width: int = 45, collision_height: int = 45,
+                 collision_offset_x: int = 120, collision_offset_y: int = 130):
         super().__init__(
-            x=x,
-            y=y,
+            x=x, y=y,
             max_health=30,
             entity_name="monster",
             animation_cache=animation_cache,
             initial_state=EntityState.IDLE
         )
-        
+
         self.monster_type = monster_type
         self.attack_damage = 10
-        self.aggro_range = 200  # Pixels within which to detect player
+        self.aggro_range = 1500
+        self.attack_range = 60
         self.is_aggro = False
-        self.frame_duration = 0.2  # Monster idle frame duration
+        self.frame_duration = 0.15
         self.experience_reward = 50
-        self.attack_cooldown = 1.0  # seconds between attacks
+        self.move_speed = 60.0
+
+        # Attack cooldown
+        self.attack_cooldown = 1.0
         self.attack_timer = 0.0
-    
+
+        # Collision box (like Player)
+        self.collision_width = collision_width
+        self.collision_height = collision_height
+        self.collision_offset_x = collision_offset_x
+        self.collision_offset_y = collision_offset_y
+
+        # Hurt/death state tracking
+        self._hurt_timer = 0.0
+        self._dying = False
+        self.flipped = True  # Orc sprite faces right by default, flip to face left
+
+    @property
+    def col_x(self) -> float:
+        return self.x + self.collision_offset_x
+
+    @property
+    def col_y(self) -> float:
+        return self.y + self.collision_offset_y
+
     def update(self, dt: float):
         self.attack_timer = max(0, self.attack_timer - dt)
-        super().update(dt)
+
+        # Hurt flash duration
+        if self._hurt_timer > 0:
+            self._hurt_timer -= dt
+            if self._hurt_timer <= 0:
+                if not self.is_alive():
+                    self._dying = True
+                    self.set_state(EntityState.DEATH)
+                else:
+                    self.set_state(EntityState.IDLE)
+
+        # Death animation — stop after last frame
+        if self._dying:
+            death_anim = self.animations.get(EntityState.DEATH.value)
+            if death_anim and self.current_frame_index >= len(death_anim) - 1:
+                return  # Stay on last death frame
+            self._update_animation_frame(dt)
+            return
+
+        # Attack animation — return to idle when finished
+        if self.state in (EntityState.ATTACK_1, EntityState.ATTACK_2):
+            attack_anim = self.animations.get(self.state.value)
+            if attack_anim and self.current_frame_index >= len(attack_anim) - 1:
+                self.set_state(EntityState.IDLE)
+
+        # Normal update
+        if self._hurt_timer <= 0:
+            self._update_animation_frame(dt)
+
+    def move(self, dt: float, tile_map=None, decorations: list = None):
+        """Move monster with tile + decoration collision checking."""
+        if self._hurt_timer > 0 or self._dying:
+            return
+        if self.vx == 0 and self.vy == 0:
+            return
+
+        next_x = self.x + self.vx * dt
+        next_y = self.y + self.vy * dt
+
+        if tile_map is None:
+            self.x = next_x
+            self.y = next_y
+            return
+
+        # Check X axis
+        col_x = next_x + self.collision_offset_x
+        col_y = self.y + self.collision_offset_y
+        if hasattr(tile_map, 'is_walkable_with_decorations'):
+            x_ok, _ = tile_map.is_walkable_with_decorations(
+                col_x, col_y, decorations, self.collision_width, self.collision_height)
+        else:
+            x_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
+        if x_ok:
+            self.x = next_x
+
+        # Check Y axis
+        col_x = self.x + self.collision_offset_x
+        col_y = next_y + self.collision_offset_y
+        if hasattr(tile_map, 'is_walkable_with_decorations'):
+            y_ok, _ = tile_map.is_walkable_with_decorations(
+                col_x, col_y, decorations, self.collision_width, self.collision_height)
+        else:
+            y_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
+        if y_ok:
+            self.y = next_y
+
+    def take_damage(self, amount: int):
+        super().take_damage(amount)
+        if self.is_alive():
+            self._hurt_timer = 0.4
+            self.set_state(EntityState.HURT)
+        else:
+            self._hurt_timer = 0.4
+            self.set_state(EntityState.HURT)
 
     def attack(self, target: Entity):
-        """Attack a target entity if cooldown is ready."""
-        if self.attack_timer > 0:
+        """Attack if cooldown ready. Uses attack_1 animation."""
+        if self.attack_timer > 0 or self._hurt_timer > 0 or self._dying:
             return
         if isinstance(target, Entity):
-            self.set_state(EntityState.ATTACK)
+            self.set_state(EntityState.ATTACK_1)
             target.take_damage(self.attack_damage)
             self.attack_timer = self.attack_cooldown
-            print(f"Monster attacks {getattr(target, 'name', 'target')} for {self.attack_damage} damage! (HP: {target.health}/{target.max_health})")
-    
-    def check_aggro(self, target: Entity) -> bool:
-        """
-        Check if target is within aggro range.
-        
-        Args:
-            target: Entity to check distance to
-            
-        Returns:
-            True if within aggro range
-        """
-        if isinstance(target, Entity):
-            dx = self.x - target.x
-            dy = self.y - target.y
-            distance = (dx**2 + dy**2) ** 0.5
-            
-            self.is_aggro = distance < self.aggro_range
-            return self.is_aggro
-        
-        return False
-    
-    def move_towards(self, target: Entity, speed: float = 30.0):
-        """
-        Move towards a target entity.
+            self.vx = 0
+            self.vy = 0
 
-        Args:
-            target: Entity to move towards
-            speed: Movement speed in pixels/second
-        """
+    def move_towards(self, target: Entity, speed: float = None):
+        """Move towards target. Uses walk animation."""
+        if self._hurt_timer > 0 or self._dying:
+            return
+        if self.attack_timer > 0:
+            self.vx = 0
+            self.vy = 0
+            return
+        speed = speed or self.move_speed
         if isinstance(target, Entity):
-            dx = target.x - self.x
-            dy = target.y - self.y
+            # Use collision box centers for distance
+            tx = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
+            ty = getattr(target, 'col_y', target.y) + getattr(target, 'collision_height', 0) / 2
+            mx = self.col_x + self.collision_width / 2
+            my = self.col_y + self.collision_height / 2
+
+            dx = tx - mx
+            dy = ty - my
             distance = (dx**2 + dy**2) ** 0.5
 
             if distance > 0:
-                # Normalize direction
-                norm_x = dx / distance
-                norm_y = dy / distance
+                self.vx = (dx / distance) * speed
+                self.vy = (dy / distance) * speed
+                self.set_state(EntityState.WALK)
 
-                # Set velocity
-                self.vx = norm_x * speed
-                self.vy = norm_y * speed
+    def distance_to(self, target: Entity) -> float:
+        """Distance between collision box centers."""
+        tx = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
+        ty = getattr(target, 'col_y', target.y) + getattr(target, 'collision_height', 0) / 2
+        mx = self.col_x + self.collision_width / 2
+        my = self.col_y + self.collision_height / 2
+        dx = tx - mx
+        dy = ty - my
+        return (dx**2 + dy**2) ** 0.5
 
-                self.set_state(EntityState.MOVE)
+    def draw(self, surface: pygame.Surface):
+        """Draw monster sprite, flipped horizontally if self.flipped."""
+        current_anim = self.animations.get(self.state.value)
+        if not current_anim or len(current_anim) == 0:
+            return
+        frame = current_anim[self.current_frame_index % len(current_anim)]
+        if self.flipped:
+            frame = pygame.transform.flip(frame, True, False)
+        surface.blit(frame, (int(self.x), int(self.y)))
 
 
 class Statue(Entity):
@@ -694,7 +780,8 @@ class Statue(Entity):
     """
 
     def __init__(self, x: float, y: float, resource_manager, max_health: int = 200,
-                 hp_bar_width: int = 70, hp_bar_height: int = 16.8):
+                 hp_bar_width: int = 70, hp_bar_height: int = 16.8,
+                 target_offset_x: int = None, target_offset_y: int = None):
         super().__init__(
             x=x, y=y,
             max_health=max_health,
@@ -704,6 +791,13 @@ class Statue(Entity):
         )
         self.resource_manager = resource_manager
         self.sprite = resource_manager.get_asset("statue")
+
+        # Target point for monsters (default: bottom center of sprite)
+        sprite_w = self.sprite.get_width() if self.sprite else 38
+        self.target_offset_x = target_offset_x if target_offset_x is not None else sprite_w // 2
+        self.target_offset_y = target_offset_y if target_offset_y is not None else (self.sprite.get_height() if self.sprite else 64)
+        self.collision_width = 0
+        self.collision_height = 0
 
         # HP bar display size (customizable)
         self.hp_bar_width = hp_bar_width
@@ -715,6 +809,14 @@ class Statue(Entity):
         self.hp_bar_frame = pygame.image.load(str(hp_bar_dir / "HP_Frame.png")).convert_alpha()
         self.hp_bar_fill = pygame.transform.scale(self.hp_bar_fill, (hp_bar_width, hp_bar_height))
         self.hp_bar_frame = pygame.transform.scale(self.hp_bar_frame, (hp_bar_width, hp_bar_height))
+
+    @property
+    def col_x(self) -> float:
+        return self.x + self.target_offset_x
+
+    @property
+    def col_y(self) -> float:
+        return self.y + self.target_offset_y
 
     def _load_animations(self):
         pass
@@ -752,7 +854,8 @@ class Portal(Entity):
     """
 
     def __init__(self, x: float, y: float, animation_cache,
-                 width: int = None, height: int = None):
+                 width: int = None, height: int = None,
+                 spawn_offset_x: int = None, spawn_offset_y: int = None):
         super().__init__(
             x=x, y=y,
             max_health=1,
@@ -761,11 +864,14 @@ class Portal(Entity):
             initial_state=EntityState.IDLE
         )
         self.frame_duration = 0.15
-        # If width/height given, force that size. Otherwise use frame size from config scale.
         self._custom_width = width
         self._custom_height = height
         self.portal_width = width or self._get_frame_size()[0]
         self.portal_height = height or self._get_frame_size()[1]
+
+        # Spawn point offset from portal top-left (default: center)
+        self.spawn_offset_x = spawn_offset_x if spawn_offset_x is not None else self.portal_width // 2
+        self.spawn_offset_y = spawn_offset_y if spawn_offset_y is not None else self.portal_height // 2
 
     def _get_frame_size(self) -> tuple:
         anim = self.animations.get(self.state.value)
