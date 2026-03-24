@@ -73,9 +73,12 @@ class SpellEffect:
         if self.finished or not self.frames:
             return
         frame = self.frames[min(self.current_frame_index, len(self.frames) - 1)]
-        # Center frame on (x, y)
+        # AOE: bottom-center of animation at (x, y); ST: center at (x, y)
         fx = int(self.x - frame.get_width() / 2)
-        fy = int(self.y - frame.get_height() / 2)
+        if self.config["type"] == "AOE":
+            fy = int(self.y - frame.get_height())
+        else:
+            fy = int(self.y - frame.get_height() / 2)
         surface.blit(frame, (fx, fy))
 
         if debug:
