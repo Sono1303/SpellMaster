@@ -165,6 +165,108 @@
         "frame_duration": 0.15,
         "scale": 5.0
       }
+    },
+    "spell": {
+      "fire": {
+        "sprite_sheet": "../ingame_assets/spell/fire.png",
+        "grid_rows": 4,
+        "grid_cols": 4,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 15,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "water": {
+        "sprite_sheet": "../ingame_assets/spell/water.png",
+        "grid_rows": 4,
+        "grid_cols": 5,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 17,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "earth": {
+        "sprite_sheet": "../ingame_assets/spell/earth.png",
+        "grid_rows": 6,
+        "grid_cols": 2,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 12,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "air": {
+        "sprite_sheet": "../ingame_assets/spell/air.png",
+        "grid_rows": 4,
+        "grid_cols": 3,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 9,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "lightning": {
+        "sprite_sheet": "../ingame_assets/spell/lightning.png",
+        "grid_rows": 1,
+        "grid_cols": 12,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 12,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "ice": {
+        "sprite_sheet": "../ingame_assets/spell/ice.png",
+        "grid_rows": 1,
+        "grid_cols": 8,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 8,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "dark": {
+        "sprite_sheet": "../ingame_assets/spell/dark.png",
+        "grid_rows": 1,
+        "grid_cols": 15,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 15,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "light": {
+        "sprite_sheet": "../ingame_assets/spell/light.png",
+        "grid_rows": 1,
+        "grid_cols": 7,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 7,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "crystal": {
+        "sprite_sheet": "../ingame_assets/spell/crystal.png",
+        "grid_rows": 1,
+        "grid_cols": 13,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 13,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      },
+      "phoenix": {
+        "sprite_sheet": "../ingame_assets/spell/phoenix.png",
+        "grid_rows": 1,
+        "grid_cols": 18,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 18,
+        "frame_duration": 0.15,
+        "scale": 1.0
+      }
     }
   }
 }

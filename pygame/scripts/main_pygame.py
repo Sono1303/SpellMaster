@@ -22,6 +22,7 @@ from map_data import LEVEL_1_BASE, LEVEL_1_OBJECTS, MAP_DIMENSIONS
 from map_engine import TileManager, TileMap
 from resource_manager import ResourceManager, AnimationCache
 from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
+from spell import SpellManager, SPELL_NAMES
 
 
 # ============================================================================
@@ -31,7 +32,8 @@ from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
 FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
+DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
+SPELL_TEST_MODE = True            # Spawn 5 monsters in center, respawn on kill
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -46,6 +48,7 @@ SPAWN_TIMER = 0.0
 SPAWN_DELAY = STAT_CONFIG["spawner"]["delay"]
 SPAWN_MAX = STAT_CONFIG["spawner"]["max_monsters"]
 SPAWN_COUNT = 0
+SPELL_MANAGER = None
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -129,7 +132,7 @@ def initialize_game_resources() -> tuple:
         resource_manager=resource_manager
     )
 
-    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS
+    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER
 
     ANIMATION_CACHE = AnimationCache()
     animations_json = PYGAME_DIR / "data" / "animations_config.json"
@@ -168,6 +171,8 @@ def initialize_game_resources() -> tuple:
     STATUE = Statue(x=statue_cfg["spawn"]["x"], y=statue_cfg["spawn"]["y"],
                     resource_manager=resource_manager)
 
+    SPELL_MANAGER = SpellManager(ANIMATION_CACHE)
+
     print(f"[OK] Player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
     print(f"[OK] Portals: {len(PORTALS)}")
     print(f"[OK] Monsters: {len(MONSTERS)}")
@@ -197,12 +202,23 @@ def handle_events() -> bool:
 
 def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):
     """Update player input/movement/animation and monster AI."""
-    global GAME_OVER
+    global GAME_OVER, SPAWN_TIMER, SPAWN_COUNT
 
     if PLAYER:
         PLAYER.handle_input()
         PLAYER.move(tile_map=tile_map, dt=dt, debug=debug_collision, decorations=decorations, monsters=MONSTERS)
         PLAYER.update(dt)
+
+    # Spell system
+    if SPELL_MANAGER and PLAYER:
+        SPELL_MANAGER.selected_spell_index = PLAYER.selected_spell_index
+        if PLAYER._spell_ready_to_fire:
+            PLAYER._spell_ready_to_fire = False
+            alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+            SPELL_MANAGER.cast(PLAYER, alive)
+        alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+        SPELL_MANAGER.update(dt, alive)
+        SPELL_MANAGER.update_curse_spread([m for m in MONSTERS if m is not None])
 
     for portal in PORTALS:
         portal.update(dt)
@@ -210,24 +226,61 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
     if GAME_OVER:
         return
 
-    # Spawn monsters from portal on interval
-    global SPAWN_TIMER, SPAWN_COUNT
-    if SPAWN_COUNT < SPAWN_MAX and PORTALS:
-        SPAWN_TIMER += dt
-        if SPAWN_TIMER >= SPAWN_DELAY:
-            SPAWN_TIMER = 0.0
-            portal = PORTALS[0]
-            spawn_x = portal.x + portal.spawn_offset_x
-            spawn_y = portal.y + portal.spawn_offset_y
-            m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
-            m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
-            m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
-            MONSTERS.append(m)
-            SPAWN_COUNT += 1
-            print(f"[SPAWN] Monster {SPAWN_COUNT}/{SPAWN_MAX} at ({spawn_x:.0f}, {spawn_y:.0f})")
+    # Remove fully faded monsters (normal mode only; spell test uses fixed slots)
+    if not SPELL_TEST_MODE:
+        MONSTERS[:] = [m for m in MONSTERS if not m._fully_dead]
+
+    # === SPELL_TEST_MODE: maintain 5 monsters in fixed positions, respawn at same spot ===
+    if SPELL_TEST_MODE:
+        SPELL_TEST_COUNT = 5
+        map_w = len(LEVEL_1_BASE[0]) * MAP_DIMENSIONS["tile_size"] if LEVEL_1_BASE else 1280
+        map_h = len(LEVEL_1_BASE) * MAP_DIMENSIONS["tile_size"] if LEVEL_1_BASE else 960
+        center_x = map_w / 2
+        center_y = map_h / 2
+        spacing = 60
+
+        # Ensure list always has exactly SPELL_TEST_COUNT slots
+        while len(MONSTERS) < SPELL_TEST_COUNT:
+            MONSTERS.append(None)
+
+        for slot in range(SPELL_TEST_COUNT):
+            m = MONSTERS[slot]
+            if m is not None and not m._fully_dead:
+                continue
+            # Respawn at the fixed position for this slot
+            offset = (slot - SPELL_TEST_COUNT // 2) * spacing
+            new_m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
+            new_m.x = center_x + offset - new_m.collision_offset_x - new_m.collision_width / 2
+            new_m.y = center_y - new_m.collision_offset_y - new_m.collision_height / 2
+            MONSTERS[slot] = new_m
+            print(f"[SPELL_TEST] Spawned monster slot {slot} at ({center_x + offset:.0f}, {center_y:.0f})")
+    else:
+        # Normal spawn from portal on interval
+        if SPAWN_COUNT < SPAWN_MAX and PORTALS:
+            SPAWN_TIMER += dt
+            if SPAWN_TIMER >= SPAWN_DELAY:
+                SPAWN_TIMER = 0.0
+                portal = PORTALS[0]
+                spawn_x = portal.x + portal.spawn_offset_x
+                spawn_y = portal.y + portal.spawn_offset_y
+                m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
+                m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
+                m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
+                MONSTERS.append(m)
+                SPAWN_COUNT += 1
+                print(f"[SPAWN] Monster {SPAWN_COUNT}/{SPAWN_MAX} at ({spawn_x:.0f}, {spawn_y:.0f})")
 
     for monster in MONSTERS:
+        if monster is None:
+            continue
         if monster._dying:
+            monster.update(dt)
+            continue
+
+        # SPELL_TEST_MODE: monsters stand still as spell targets
+        if SPELL_TEST_MODE:
+            monster.vx = 0
+            monster.vy = 0
             monster.update(dt)
             continue
 
@@ -365,7 +418,12 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     if PLAYER:
         PLAYER.draw(screen)
     for monster in MONSTERS:
-        monster.draw(screen)
+        if monster is not None:
+            monster.draw(screen)
+
+    # Active spell effects
+    if SPELL_MANAGER:
+        SPELL_MANAGER.draw(screen, debug=DRAW_ALL_COLLISION_BOXES)
 
     # Collision boxes overlay (all objects with collision=True)
     if DRAW_ALL_COLLISION_BOXES and decorations:
@@ -408,6 +466,8 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     # Draw monster collision boxes (magenta)
     if DRAW_ALL_COLLISION_BOXES:
         for monster in MONSTERS:
+            if monster is None:
+                continue
             mx, my = int(monster.col_x), int(monster.col_y)
             mw, mh = monster.collision_width, monster.collision_height
             pygame.draw.rect(screen, (255, 0, 255), (mx, my, mw, mh), 2)
@@ -428,6 +488,19 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
         text_bg.set_alpha(180)
         screen.blit(text_bg, (5, 5))
         screen.blit(text_surface, (10, 7))
+
+    # Spell selection HUD
+    if SPELL_MANAGER and PLAYER and not GAME_OVER:
+        spell_name = SPELL_NAMES[PLAYER.selected_spell_index] if PLAYER.selected_spell_index < len(SPELL_NAMES) else "?"
+        hud_font = pygame.font.Font(None, 24)
+        spell_text = hud_font.render(
+            f"Spell [{PLAYER.selected_spell_index}]: {spell_name.capitalize()}  |  Mana: {PLAYER.mana}/{PLAYER.max_mana}",
+            True, (255, 255, 255))
+        bg = pygame.Surface((spell_text.get_width() + 10, spell_text.get_height() + 4))
+        bg.fill((0, 0, 0))
+        bg.set_alpha(160)
+        screen.blit(bg, (5, screen.get_height() - 28))
+        screen.blit(spell_text, (10, screen.get_height() - 26))
 
     # Game Over overlay
     if GAME_OVER:

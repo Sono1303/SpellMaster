@@ -10,6 +10,7 @@ Classes:
 
 import pygame
 import json
+import math
 from typing import Optional, List, Dict
 from enum import Enum
 from pathlib import Path
@@ -275,7 +276,9 @@ class Player(Entity):
         # Casting properties
         self.casting_stage = None  # None, "pre_cast", "casting", or "post_cast"
         self.space_pressed = False  # Track if space is currently held
-        self.casting_frame_counter = 0  # Frame counter for cast animation phases
+        self.casting_frame_counter = 0
+        self.selected_spell_index = 0  # 0-9 maps to spell keys
+        self._spell_ready_to_fire = False  # Consumed by SpellManager
 
     @property
     def col_x(self) -> float:
@@ -331,7 +334,14 @@ class Player(Entity):
             self._finish_casting()
         
         self.space_pressed = space_now
-    
+
+        # Spell selection (0-9) while casting
+        if self.casting_stage == "casting":
+            for i in range(10):
+                if keys[getattr(pygame, f'K_{i}')]:
+                    self.selected_spell_index = i
+                    break
+
     def move(self, tile_map=None, dt: float = 1.0, debug: bool = False, decorations: list = None, monsters: list = None):
         """
         Move the player based on velocity, with collision detection (tiles + decorations + monsters).
@@ -541,11 +551,9 @@ class Player(Entity):
         Consumes mana when spell completes.
         """
         if self.casting_stage == "casting" or self.casting_stage == "pre_cast":
-            # Spell completes - deduct mana and show post-cast animation
-            self.mana = max(0, self.mana - 0)  # Cost per spell
+            self._spell_ready_to_fire = True
             self.casting_stage = "post_cast"
             self.set_state(EntityState.POST_CAST, reset_frame=True)
-            print(f"{self.name} cast spell! Remaining mana: {self.mana}")
     
     def cast_spell(self):
         """
@@ -621,6 +629,8 @@ class Monster(Entity):
     Monster enemy character with collision box and full animation states.
     Animations: idle, walk, attack_1, attack_2, hurt, death
     """
+    _hp_fill_raw = None
+    _hp_border_raw = None
 
     def __init__(self, x: float, y: float, animation_cache=None,
                  monster_type: str = "orc"):
@@ -658,6 +668,40 @@ class Monster(Entity):
         self._blocked_by_player = False
         self.flipped = True  # Orc sprite faces right by default, flip to face left
 
+        # Death fade-out
+        self._fade_timer = -1.0   # counts down from 1.0 after death anim finishes
+        self._fade_alpha = 255
+        self._fully_dead = False  # True when fade complete → safe to remove
+
+        # HP bar sprites (loaded once, shared across all monsters)
+        hp_cfg = cfg.get("hp_bar", {})
+        self._hp_bar_w = hp_cfg.get("width", self.collision_width)
+        self._hp_bar_h = hp_cfg.get("height", 6)
+        self._hp_bar_offset_x = hp_cfg.get("offset_x", 0)
+        self._hp_bar_offset_y = hp_cfg.get("offset_y", -4)
+        self._hp_pad_x = hp_cfg.get("fill_padding_x", 0)
+        self._hp_pad_y = hp_cfg.get("fill_padding_y", 0)
+        if Monster._hp_fill_raw is None:
+            hp_bar_dir = Path(__file__).parent.parent / "ingame_assets" / "ui" / "mob_hp"
+            Monster._hp_fill_raw = pygame.image.load(str(hp_bar_dir / "healthbar.png")).convert_alpha()
+            Monster._hp_border_raw = pygame.image.load(str(hp_bar_dir / "hp_border.png")).convert_alpha()
+        fill_w = self._hp_bar_w - self._hp_pad_x * 2
+        fill_h = self._hp_bar_h - self._hp_pad_y * 2
+        self._hp_fill = pygame.transform.scale(Monster._hp_fill_raw, (max(fill_w, 1), max(fill_h, 1)))
+        self._hp_border = pygame.transform.scale(Monster._hp_border_raw, (self._hp_bar_w, self._hp_bar_h))
+
+        # Status effects
+        self._base_move_speed = self.move_speed
+        self.cursed = False
+        self._status = {
+            "burn": {"active": False, "damage": 0, "duration": 0, "timer": 0, "tick_timer": 0},
+            "stun": {"active": False, "timer": 0},
+            "freeze": {"active": False, "timer": 0, "then_slow_value": 0, "then_slow_duration": 0},
+            "slow": {"active": False, "timer": 0, "value": 1.0},
+            "knockback": {"active": False, "vx": 0, "vy": 0, "timer": 0},
+            "knockup": {"active": False, "duration": 0, "timer": 0, "offset_y": 0},
+        }
+
     @property
     def col_x(self) -> float:
         return self.x + self.collision_offset_x
@@ -669,6 +713,60 @@ class Monster(Entity):
     def update(self, dt: float):
         self.attack_timer = max(0, self.attack_timer - dt)
 
+        # --- Status effect ticking ---
+        burn = self._status["burn"]
+        if burn["active"]:
+            burn["timer"] -= dt
+            burn["tick_timer"] -= dt
+            if burn["tick_timer"] <= 0:
+                burn["tick_timer"] = 1.0
+                self.take_spell_damage(int(burn["damage"]))
+            if burn["timer"] <= 0:
+                burn["active"] = False
+
+        stun = self._status["stun"]
+        if stun["active"]:
+            stun["timer"] -= dt
+            if stun["timer"] <= 0:
+                stun["active"] = False
+
+        freeze = self._status["freeze"]
+        if freeze["active"]:
+            freeze["timer"] -= dt
+            if freeze["timer"] <= 0:
+                freeze["active"] = False
+                if freeze.get("then_slow_value", 0) > 0:
+                    self.apply_slow(freeze["then_slow_value"], freeze.get("then_slow_duration", 0))
+
+        slow = self._status["slow"]
+        if slow["active"]:
+            slow["timer"] -= dt
+            if slow["timer"] <= 0:
+                slow["active"] = False
+                self.move_speed = self._base_move_speed
+
+        kb = self._status["knockback"]
+        if kb["active"]:
+            kb["timer"] -= dt
+            self.x += kb["vx"] * dt
+            self.y += kb["vy"] * dt
+            if kb["timer"] <= 0:
+                kb["active"] = False
+
+        ku = self._status["knockup"]
+        if ku["active"]:
+            ku["timer"] -= dt
+            progress = 1.0 - (ku["timer"] / ku["duration"]) if ku["duration"] > 0 else 1.0
+            ku["offset_y"] = -30 * math.sin(progress * math.pi)
+            if ku["timer"] <= 0:
+                ku["active"] = False
+                ku["offset_y"] = 0
+
+        # If CC locked, only animate, skip AI
+        if self._is_cc_locked():
+            self._update_animation_frame(dt)
+            return
+
         # Hurt flash duration
         if self._hurt_timer > 0:
             self._hurt_timer -= dt
@@ -679,11 +777,21 @@ class Monster(Entity):
                 else:
                     self.set_state(EntityState.IDLE)
 
-        # Death animation — stop after last frame
+        # Death animation — stop after last frame, then fade out
         if self._dying:
+            # Already fading → count down fade timer
+            if self._fade_timer >= 0:
+                self._fade_timer -= dt
+                self._fade_alpha = max(0, int(255 * (self._fade_timer / 1.0)))
+                if self._fade_timer <= 0:
+                    self._fully_dead = True
+                return
+
             death_anim = self.animations.get(EntityState.DEATH.value)
             if death_anim and self.current_frame_index >= len(death_anim) - 1:
-                return  # Stay on last death frame
+                # Death anim finished → start 1s fade
+                self._fade_timer = 1.0
+                return
             self._update_animation_frame(dt)
             return
 
@@ -793,6 +901,59 @@ class Monster(Entity):
             self._hurt_timer = 0.4
             self.set_state(EntityState.HURT)
 
+    def take_spell_damage(self, amount: int):
+        """Reduce HP without triggering hurt animation (spell hits don't interrupt status visuals)."""
+        self.health = max(0, self.health - amount)
+        if not self.is_alive() and not self._dying:
+            self._dying = True
+            self.set_state(EntityState.DEATH)
+
+    def apply_burn(self, damage_per_sec: float, duration: float):
+        b = self._status["burn"]
+        b["active"] = True
+        b["damage"] = damage_per_sec
+        b["timer"] = max(b["timer"], duration)
+        if b["tick_timer"] <= 0:
+            b["tick_timer"] = 1.0
+
+    def apply_stun(self, duration: float):
+        s = self._status["stun"]
+        s["active"] = True
+        s["timer"] = max(s["timer"], duration)
+
+    def apply_freeze(self, duration: float, then_slow_value: float = 0, then_slow_duration: float = 0):
+        f = self._status["freeze"]
+        f["active"] = True
+        f["timer"] = max(f["timer"], duration)
+        f["then_slow_value"] = then_slow_value
+        f["then_slow_duration"] = then_slow_duration
+
+    def apply_slow(self, value: float, duration: float):
+        s = self._status["slow"]
+        s["active"] = True
+        s["value"] = value
+        s["timer"] = max(s["timer"], duration)
+        self.move_speed = self._base_move_speed * value
+
+    def apply_knockback(self, force: float, dir_x: float, dir_y: float):
+        kb = self._status["knockback"]
+        kb["active"] = True
+        kb["vx"] = dir_x * force
+        kb["vy"] = dir_y * force
+        kb["timer"] = 0.2
+
+    def apply_knockup(self, duration: float):
+        ku = self._status["knockup"]
+        ku["active"] = True
+        ku["duration"] = duration
+        ku["timer"] = duration
+        ku["offset_y"] = 0
+
+    def _is_cc_locked(self) -> bool:
+        return (self._status["stun"]["active"] or
+                self._status["freeze"]["active"] or
+                self._status["knockup"]["active"])
+
     def attack(self, target: Entity):
         """Attack if cooldown ready. Uses attack_1 animation."""
         if self.attack_timer > 0 or self._hurt_timer > 0 or self._dying:
@@ -837,14 +998,43 @@ class Monster(Entity):
         return (dx**2 + dy**2) ** 0.5
 
     def draw(self, surface: pygame.Surface):
-        """Draw monster sprite, flipped horizontally if self.flipped."""
+        """Draw monster sprite, flipped horizontally if self.flipped. Knockup offset applied."""
+        if self._fully_dead:
+            return
         current_anim = self.animations.get(self.state.value)
         if not current_anim or len(current_anim) == 0:
             return
         frame = current_anim[self.current_frame_index % len(current_anim)]
         if self.flipped:
             frame = pygame.transform.flip(frame, True, False)
-        surface.blit(frame, (int(self.x), int(self.y)))
+        # Apply fade-out alpha
+        if self._fade_alpha < 255:
+            frame = frame.copy()
+            frame.set_alpha(self._fade_alpha)
+        knockup_offset = self._status["knockup"].get("offset_y", 0)
+        surface.blit(frame, (int(self.x), int(self.y + knockup_offset)))
+
+        # HP bar above collision box
+        if not self._dying:
+            bar_x = int(self.col_x + self.collision_width / 2 - self._hp_bar_w / 2 + self._hp_bar_offset_x)
+            bar_y = int(self.col_y + self._hp_bar_offset_y - self._hp_bar_h + knockup_offset)
+            # Border (background)
+            border = self._hp_border
+            fill = self._hp_fill
+            if self._fade_alpha < 255:
+                border = border.copy()
+                border.set_alpha(self._fade_alpha)
+                fill = fill.copy()
+                fill.set_alpha(self._fade_alpha)
+            surface.blit(border, (bar_x, bar_y))
+            # Fill cropped by HP ratio (inset by padding)
+            hp_ratio = self.health / self.max_health
+            fill_max_w = self._hp_bar_w - self._hp_pad_x * 2
+            fill_h = self._hp_bar_h - self._hp_pad_y * 2
+            if hp_ratio > 0 and fill_max_w > 0 and fill_h > 0:
+                fill_w = int(fill_max_w * hp_ratio)
+                surface.blit(fill, (bar_x + self._hp_pad_x, bar_y + self._hp_pad_y),
+                             pygame.Rect(0, 0, fill_w, fill_h))
 
 
 class Statue(Entity):

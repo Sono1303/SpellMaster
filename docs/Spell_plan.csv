@@ -1,0 +1,11 @@
+STT,Tên,Type,Uniqe effect,Mô tả,Animation frame,Handsign,Icon
+1,Fire,ST,Thiêu đốt,Sau khi đánh trúng quái sẽ gây sát thương kèm theo hiệu ứng thiêu đốt trong 3s,#VALUE!,#VALUE!,#VALUE!
+2,Water,AOE,Hất tung,Gây sát thương diện rộng trên vùng dựa vào mục tiêu được chọn kèm theo hiệu ứng hất tung trong 1s,#VALUE!,#VALUE!,#VALUE!
+3,Earth,ST,Choáng,Sau khi đánh trúng quái sẽ gây sát thương kèm theo hiệu ứng choáng 1s,#VALUE!,#VALUE!,#VALUE!
+4,Air,AOE,Đẩy lùi,"Gây sát thương diện rộng trên vùng dựa vào mục tiêu được chọn kèm theo hiệu ứng đẩy lùi, các mục tiêu lân cận sẽ bị đẩy ra khỏi mục tiêu được chọn",#VALUE!,#VALUE!,#VALUE!
+5,Lightning,ST,Chớp giật,"Nếu đòn đánh kết liễu địch thì gây sát thương lan sang mục tiêu gần nhất, sát thương kéo dài trong 5s",#VALUE!,#VALUE!,#VALUE!
+6,Ice,ST,Đóng băng,"Sau khi đánh trúng quái sẽ gây sát thương kèm theo hiệu ứng đóng băng trong 1s, sau khi hết đóng băng mục tiêu bị làm chậm trong vòng 3s",#VALUE!,#VALUE!,#VALUE!
+7,Dark,ST,Nguyền ấn,"Sau khi đánh trúng quái sẽ gây sát thương kèm theo hiệu ứng gây sát thương trong 5s, nếu mục tiêu va chạm với mục tiêu khác có thể lây lan nguyền ấn",#VALUE!,#VALUE!,#VALUE!
+8,Light,AOE,Nhân đôi,Đánh dấu vị trí mục tiêu được chọn và gây sát thương lần 2 tại vị trí đó,#VALUE!,#VALUE!,#VALUE!
+9,Crystal,AOE,Đánh dấu,"Tiêu tốn lượng lớn năng lượng, gây sát thương diện rộng, số lượng mục tiêu bị kết liệu sẽ chuyển hóa thành sát thương cho số lượng mục tiêu lân cận tương ứng",#VALUE!,#VALUE!,#VALUE!
+10,Phoenix,AOE,Sát thương lớn,Đánh dấu vị trí mục tiêu được chọn gây sát thương nổ diện rộng sau 3s,#VALUE!,#VALUE!,#VALUE!
