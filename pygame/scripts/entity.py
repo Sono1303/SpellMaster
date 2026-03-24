@@ -259,6 +259,7 @@ class Player(Entity):
         self.name = name
         self.max_mana = cfg["max_mana"]
         self.mana = self.max_mana
+        self.mana_regen = cfg.get("mana_regen", 0)
         self.experience = 0
         self.level = 1
         self.frame_duration = cfg["frame_duration"]
@@ -528,6 +529,10 @@ class Player(Entity):
                 if self.state != EntityState.IDLE:
                     self.set_state(EntityState.IDLE, reset_frame=True)
         
+        # Mana regen
+        if self.mana_regen > 0 and self.mana < self.max_mana:
+            self.mana = min(self.max_mana, self.mana + self.mana_regen * dt)
+
         # Call parent update to advance animation frames
         super().update(dt)
     

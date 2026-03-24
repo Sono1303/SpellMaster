@@ -10,6 +10,7 @@
       "offset_x": 65,
       "offset_y": 70
     },
+    "mana_regen": 5.0,
     "spawn": {
       "x": 200,
       "y": 265
@@ -75,6 +76,7 @@
     "fire": {
       "index": 0, "type": "ST", "damage": 15, "mana_cost": 10,
       "hitbox": {"width": 40, "height": 50, "offset_x": -20, "offset_y": -25},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 5, "burn_duration": 3.0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
@@ -83,6 +85,7 @@
     "water": {
       "index": 1, "type": "AOE", "damage": 10, "mana_cost": 12,
       "hitbox": {"width": 80, "height": 80, "offset_x": -40, "offset_y": -40},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 1.0,
@@ -91,6 +94,7 @@
     "earth": {
       "index": 2, "type": "ST", "damage": 20, "mana_cost": 10,
       "hitbox": {"width": 35, "height": 60, "offset_x": -17, "offset_y": -30},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 1.0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
@@ -99,6 +103,7 @@
     "air": {
       "index": 3, "type": "AOE", "damage": 8, "mana_cost": 10,
       "hitbox": {"width": 70, "height": 70, "offset_x": -35, "offset_y": -35},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 0, "knockback_force": 150.0, "knockup_duration": 0,
@@ -107,6 +112,7 @@
     "lightning": {
       "index": 4, "type": "ST", "damage": 25, "mana_cost": 15,
       "hitbox": {"width": 30, "height": 80, "offset_x": -15, "offset_y": -40},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 3, "burn_duration": 5.0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
@@ -115,6 +121,7 @@
     "ice": {
       "index": 5, "type": "ST", "damage": 12, "mana_cost": 12,
       "hitbox": {"width": 35, "height": 40, "offset_x": -17, "offset_y": -20},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 3.0, "slow_value": 0.5,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 1.0, "knockback_force": 0, "knockup_duration": 0,
@@ -123,6 +130,7 @@
     "dark": {
       "index": 6, "type": "ST", "damage": 10, "mana_cost": 15,
       "hitbox": {"width": 40, "height": 50, "offset_x": -20, "offset_y": -25},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 4, "burn_duration": 5.0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
@@ -131,6 +139,7 @@
     "light": {
       "index": 7, "type": "AOE", "damage": 18, "mana_cost": 14,
       "hitbox": {"width": 60, "height": 60, "offset_x": -30, "offset_y": -30},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
@@ -139,6 +148,7 @@
     "crystal": {
       "index": 8, "type": "AOE", "damage": 30, "mana_cost": 20,
       "hitbox": {"width": 75, "height": 75, "offset_x": -37, "offset_y": -37},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
@@ -147,6 +157,7 @@
     "phoenix": {
       "index": 9, "type": "AOE", "damage": 35, "mana_cost": 25,
       "hitbox": {"width": 90, "height": 90, "offset_x": -45, "offset_y": -45},
+      "anim_offset_x": 0, "anim_offset_y": 0,
       "stun_duration": 0, "slow_duration": 0, "slow_value": 0,
       "burn_damage": 0, "burn_duration": 0,
       "freeze_duration": 0, "knockback_force": 0, "knockup_duration": 0,
