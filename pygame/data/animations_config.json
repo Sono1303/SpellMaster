@@ -87,7 +87,7 @@
         "grid_cols": 11,
         "start_row": 0,
         "start_col": 0,
-        "frame_count":11,
+        "frame_count": 11,
         "frame_duration": 0.12,
         "scale": 2.0
       }
@@ -175,7 +175,7 @@
         "start_col": 0,
         "frame_count": 15,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 2.0
       },
       "water": {
         "sprite_sheet": "../ingame_assets/spell/water.png",
@@ -185,32 +185,32 @@
         "start_col": 0,
         "frame_count": 17,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 2.0
       },
       "earth": {
         "sprite_sheet": "../ingame_assets/spell/earth.png",
-        "grid_rows": 6,
-        "grid_cols": 2,
+        "grid_rows": 2,
+        "grid_cols": 6,
         "start_row": 0,
         "start_col": 0,
         "frame_count": 12,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 2.0
       },
       "air": {
         "sprite_sheet": "../ingame_assets/spell/air.png",
-        "grid_rows": 4,
-        "grid_cols": 3,
+        "grid_rows": 3,
+        "grid_cols": 4,
         "start_row": 0,
         "start_col": 0,
         "frame_count": 9,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 3.5
       },
       "lightning": {
         "sprite_sheet": "../ingame_assets/spell/lightning.png",
         "grid_rows": 1,
-        "grid_cols": 12,
+        "grid_cols": 13,
         "start_row": 0,
         "start_col": 0,
         "frame_count": 12,
@@ -230,7 +230,7 @@
       "dark": {
         "sprite_sheet": "../ingame_assets/spell/dark.png",
         "grid_rows": 1,
-        "grid_cols": 15,
+        "grid_cols": 16,
         "start_row": 0,
         "start_col": 0,
         "frame_count": 15,
