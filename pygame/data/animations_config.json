@@ -215,7 +215,7 @@
         "start_col": 0,
         "frame_count": 12,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 1.3
       },
       "ice": {
         "sprite_sheet": "../ingame_assets/spell/ice.png",
@@ -225,7 +225,7 @@
         "start_col": 0,
         "frame_count": 8,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 3.0
       },
       "dark": {
         "sprite_sheet": "../ingame_assets/spell/dark.png",
@@ -235,7 +235,7 @@
         "start_col": 0,
         "frame_count": 15,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 2.0
       },
       "light": {
         "sprite_sheet": "../ingame_assets/spell/light.png",
@@ -245,7 +245,7 @@
         "start_col": 0,
         "frame_count": 7,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 2.0
       },
       "crystal": {
         "sprite_sheet": "../ingame_assets/spell/crystal.png",
@@ -255,7 +255,7 @@
         "start_col": 0,
         "frame_count": 13,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 3.5
       },
       "phoenix": {
         "sprite_sheet": "../ingame_assets/spell/phoenix.png",
@@ -265,7 +265,7 @@
         "start_col": 0,
         "frame_count": 18,
         "frame_duration": 0.15,
-        "scale": 1.0
+        "scale": 6.0
       }
     }
   }

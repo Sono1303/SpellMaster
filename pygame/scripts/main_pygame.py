@@ -32,7 +32,7 @@ from spell import SpellManager, SPELL_NAMES
 FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
+DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
 SPELL_TEST_MODE = True            # Spawn 5 monsters in center, respawn on kill
 
 # Global state
