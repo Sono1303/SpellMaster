@@ -47,9 +47,9 @@ class SpellEffect:
         self.marked_x = 0.0
         self.marked_y = 0.0
 
-        # delayed_explosion: mark position, no immediate damage
+        # delayed_explosion: show animation immediately, delay damage
         if self.special == "delayed_explosion":
-            self.explosion_timer = 3.0
+            self.explosion_timer = 1.0
             self.has_applied_damage = True  # skip immediate damage
 
     def get_hitbox(self) -> pygame.Rect:
@@ -273,7 +273,7 @@ class SpellManager:
         if not frames:
             print(f"[SPELL] No animation frames for {spell_name}")
             return None
-        frame_duration = 0.08
+        frame_duration = self.animation_cache.animation_durations.get("spell", {}).get(spell_name, 0.15)
         return SpellEffect(spell_name, cfg, x, y, frames, frame_duration, target_monster=target)
 
     def update(self, dt: float, all_monsters: list):
@@ -297,27 +297,20 @@ class SpellManager:
             if spell.second_hit_timer > 0:
                 spell.second_hit_timer -= dt
                 if spell.second_hit_timer <= 0:
+                    cfg_copy = dict(spell.config)
+                    cfg_copy["special"] = None  # prevent infinite recursion
                     effect = self._create_spell_effect(
-                        spell.spell_name, spell.config,
+                        spell.spell_name, cfg_copy,
                         spell.marked_x, spell.marked_y, None
                     )
                     if effect:
-                        # Double hit is AOE at marked position
                         pending.append(effect)
 
-            # Delayed explosion timer
+            # Delayed explosion timer — re-enable damage when timer expires
             if spell.explosion_timer > 0:
                 spell.explosion_timer -= dt
                 if spell.explosion_timer <= 0:
-                    # Spawn actual damage effect
-                    cfg_copy = dict(spell.config)
-                    cfg_copy["special"] = None  # don't recurse
-                    effect = SpellEffect(
-                        spell.spell_name, cfg_copy,
-                        spell.x, spell.y,
-                        spell.frames[:], spell.frame_duration, None
-                    )
-                    pending.append(effect)
+                    spell.has_applied_damage = False  # allow damage to apply next tick
 
         self.active_spells.extend(pending)
 

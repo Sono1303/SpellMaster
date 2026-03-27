@@ -776,10 +776,10 @@ class Monster(Entity):
         if self._hurt_timer > 0:
             self._hurt_timer -= dt
             if self._hurt_timer <= 0:
-                if not self.is_alive():
+                if not self.is_alive() and not self._dying:
                     self._dying = True
                     self.set_state(EntityState.DEATH)
-                else:
+                elif not self._dying:
                     self.set_state(EntityState.IDLE)
 
         # Death animation — stop after last frame, then fade out
@@ -907,11 +907,14 @@ class Monster(Entity):
             self.set_state(EntityState.HURT)
 
     def take_spell_damage(self, amount: int):
-        """Reduce HP without triggering hurt animation (spell hits don't interrupt status visuals)."""
+        """Reduce HP and trigger hurt animation."""
         self.health = max(0, self.health - amount)
         if not self.is_alive() and not self._dying:
-            self._dying = True
-            self.set_state(EntityState.DEATH)
+            self._hurt_timer = 0.4
+            self.set_state(EntityState.HURT)
+        elif self.is_alive() and not self._dying:
+            self._hurt_timer = 0.4
+            self.set_state(EntityState.HURT)
 
     def apply_burn(self, damage_per_sec: float, duration: float):
         b = self._status["burn"]

@@ -162,7 +162,7 @@
         "start_row": 0,
         "start_col": 0,
         "frame_count": 8,
-        "frame_duration": 0.15,
+        "frame_duration": 0.2,
         "scale": 5.0
       }
     },
@@ -264,7 +264,7 @@
         "start_row": 0,
         "start_col": 0,
         "frame_count": 18,
-        "frame_duration": 0.15,
+        "frame_duration": 0.2,
         "scale": 6.0
       }
     }

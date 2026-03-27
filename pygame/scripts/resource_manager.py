@@ -490,6 +490,8 @@ class AnimationCache:
         # Structure: animations[entity_name][animation_name] = [frame1, frame2, ...]
         self.animation_scales: Dict[str, Dict[str, float]] = {}
         # Structure: animation_scales[entity_name][animation_name] = scale_factor
+        self.animation_durations: Dict[str, Dict[str, float]] = {}
+        # Structure: animation_durations[entity_name][animation_name] = frame_duration
         self.spritesheet_cache: Dict[str, pygame.Surface] = {}
         # Cache loaded sprite sheets to avoid reloading
     
@@ -586,6 +588,10 @@ class AnimationCache:
                         if entity_name not in self.animation_scales:
                             self.animation_scales[entity_name] = {}
                         self.animation_scales[entity_name][anim_name] = scale
+
+                        if entity_name not in self.animation_durations:
+                            self.animation_durations[entity_name] = {}
+                        self.animation_durations[entity_name][anim_name] = anim_config.get("frame_duration", 0.15)
                         
                         print(f"    ✓ {anim_name}: {len(frames)} frames (scale: {scale})")
                     

@@ -32,7 +32,7 @@ from spell import SpellManager, SPELL_NAMES
 FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
+DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
 SPELL_TEST_MODE = True            # Spawn 5 monsters in center, respawn on kill
 
 # Global state
@@ -279,6 +279,13 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
 
         # SPELL_TEST_MODE: monsters stand still as spell targets
         if SPELL_TEST_MODE:
+            monster.vx = 0
+            monster.vy = 0
+            monster.update(dt)
+            continue
+
+        # Skip movement if CC locked (stun/freeze/knockup)
+        if monster._is_cc_locked():
             monster.vx = 0
             monster.vy = 0
             monster.update(dt)
