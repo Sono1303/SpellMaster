@@ -256,6 +256,17 @@
         "frame_count": 13,
         "frame_duration": 0.15,
         "scale": 3.5
+      }
+      ,
+      "crystal_mini": {
+        "sprite_sheet": "../ingame_assets/spell/crystal.png",
+        "grid_rows": 1,
+        "grid_cols": 13,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 13,
+        "frame_duration": 0.15,
+        "scale": 3.5
       },
       "phoenix": {
         "sprite_sheet": "../ingame_assets/spell/phoenix.png",

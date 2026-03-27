@@ -220,7 +220,7 @@
       "freeze_duration": 0,
       "knockback_force": 0,
       "knockup_duration": 0,
-      "special": null
+      "special": "double_hit"
     },
     "crystal": {
       "index": 8,

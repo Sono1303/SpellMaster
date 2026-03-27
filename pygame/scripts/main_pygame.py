@@ -23,6 +23,7 @@ from map_engine import TileManager, TileMap
 from resource_manager import ResourceManager, AnimationCache
 from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
 from spell import SpellManager, SPELL_NAMES
+from sfx_manager import SFXManager
 
 
 # ============================================================================
@@ -49,6 +50,7 @@ SPAWN_DELAY = STAT_CONFIG["spawner"]["delay"]
 SPAWN_MAX = STAT_CONFIG["spawner"]["max_monsters"]
 SPAWN_COUNT = 0
 SPELL_MANAGER = None
+SFX_MANAGER = None
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -132,7 +134,7 @@ def initialize_game_resources() -> tuple:
         resource_manager=resource_manager
     )
 
-    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER
+    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER, SFX_MANAGER
 
     ANIMATION_CACHE = AnimationCache()
     animations_json = PYGAME_DIR / "data" / "animations_config.json"
@@ -171,7 +173,9 @@ def initialize_game_resources() -> tuple:
     STATUE = Statue(x=statue_cfg["spawn"]["x"], y=statue_cfg["spawn"]["y"],
                     resource_manager=resource_manager)
 
-    SPELL_MANAGER = SpellManager(ANIMATION_CACHE)
+    SFX_MANAGER = SFXManager()
+    PLAYER.sfx_manager = SFX_MANAGER
+    SPELL_MANAGER = SpellManager(ANIMATION_CACHE, sfx_manager=SFX_MANAGER)
 
     print(f"[OK] Player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
     print(f"[OK] Portals: {len(PORTALS)}")
@@ -253,6 +257,8 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
             new_m.x = center_x + offset - new_m.collision_offset_x - new_m.collision_width / 2
             new_m.y = center_y - new_m.collision_offset_y - new_m.collision_height / 2
             MONSTERS[slot] = new_m
+            if SFX_MANAGER:
+                SFX_MANAGER.play("action", "monster_spawn")
             print(f"[SPELL_TEST] Spawned monster slot {slot} at ({center_x + offset:.0f}, {center_y:.0f})")
     else:
         # Normal spawn from portal on interval
@@ -268,6 +274,8 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
                 m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
                 MONSTERS.append(m)
                 SPAWN_COUNT += 1
+                if SFX_MANAGER:
+                    SFX_MANAGER.play("action", "monster_spawn")
                 print(f"[SPAWN] Monster {SPAWN_COUNT}/{SPAWN_MAX} at ({spawn_x:.0f}, {spawn_y:.0f})")
 
     for monster in MONSTERS:

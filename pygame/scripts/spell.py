@@ -158,7 +158,7 @@ class SpellEffect:
             self.marked_y = self.y
             self.second_hit_timer = 0.5
         elif self.special == "kill_bonus":
-            self._handle_kill_bonus(all_monsters)
+            new_spells.extend(self._handle_kill_bonus(all_monsters))
 
         return new_spells
 
@@ -190,29 +190,66 @@ class SpellEffect:
                     })
         return new_spells
 
-    def _handle_kill_bonus(self, all_monsters: list):
-        """Crystal: killed targets deal bonus damage to nearby monsters."""
-        hb = self.config["hitbox"]
-        bonus_radius = max(hb["width"], hb["height"])
-        bonus_damage = int(self.config["damage"] * 0.5)
-        for m in self.hit_monsters:
-            if not m.is_alive():
-                mx = getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2
-                my = getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2
-                for other in all_monsters:
-                    if other is m or not other.is_alive() or getattr(other, '_dying', False):
-                        continue
-                    ox = getattr(other, 'col_x', other.x) + getattr(other, 'collision_width', 0) / 2
-                    oy = getattr(other, 'col_y', other.y) + getattr(other, 'collision_height', 0) / 2
-                    if ((mx - ox)**2 + (my - oy)**2) ** 0.5 <= bonus_radius:
-                        other.take_spell_damage(bonus_damage)
+    def _handle_kill_bonus(self, all_monsters: list) -> list:
+        """Crystal: if killed mobs, redistribute their damage equally to all
+        remaining alive mobs with crystal effects + crystal_mini animation."""
+        new_spells = []
+        killed_count = sum(1 for m in self.hit_monsters if not m.is_alive())
+        if killed_count == 0:
+            return new_spells
+
+        total_damage = self.config["damage"] * killed_count
+        remaining = [m for m in all_monsters
+                     if m.is_alive() and not getattr(m, '_dying', False)]
+        if not remaining:
+            return new_spells
+
+        damage_per_mob = max(1, total_damage // len(remaining))
+        cfg = self.config
+
+        for m in remaining:
+            m.take_spell_damage(damage_per_mob)
+
+            # Apply crystal spell effects
+            if cfg.get("burn_duration", 0) > 0 and cfg.get("burn_damage", 0) > 0:
+                m.apply_burn(cfg["burn_damage"], cfg["burn_duration"])
+            if cfg.get("stun_duration", 0) > 0:
+                m.apply_stun(cfg["stun_duration"])
+            if cfg.get("freeze_duration", 0) > 0:
+                m.apply_freeze(cfg["freeze_duration"],
+                               cfg.get("slow_value", 0), cfg.get("slow_duration", 0))
+            elif cfg.get("slow_duration", 0) > 0 and cfg.get("slow_value", 0) > 0:
+                m.apply_slow(cfg["slow_value"], cfg["slow_duration"])
+            if cfg.get("knockback_force", 0) > 0:
+                dx = (getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2) - self.x
+                dy = (getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2) - self.y
+                dist = max((dx**2 + dy**2) ** 0.5, 1)
+                m.apply_knockback(cfg["knockback_force"], dx / dist, dy / dist)
+            if cfg.get("knockup_duration", 0) > 0:
+                m.apply_knockup(cfg["knockup_duration"])
+
+            # Spawn crystal_mini animation at this monster
+            mx = getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2
+            my = getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2
+            mini_cfg = dict(cfg)
+            mini_cfg["damage"] = 0
+            mini_cfg["special"] = None
+            new_spells.append({
+                "spell_name": "crystal_mini",
+                "config": mini_cfg,
+                "x": mx, "y": my,
+                "target": m
+            })
+
+        return new_spells
 
 
 class SpellManager:
     """Manages spell casting, active spell effects, and rendering."""
 
-    def __init__(self, animation_cache):
+    def __init__(self, animation_cache, sfx_manager=None):
         self.animation_cache = animation_cache
+        self.sfx_manager = sfx_manager
         self.spell_configs = STAT_CONFIG["spells"]
         self.active_spells: List[SpellEffect] = []
         self.selected_spell_index: int = 0
@@ -246,6 +283,8 @@ class SpellManager:
         spell_effect = self._create_spell_effect(spell_name, cfg, tx, ty, target)
         if spell_effect:
             self.active_spells.append(spell_effect)
+            if self.sfx_manager:
+                self.sfx_manager.play("spell", spell_name)
             print(f"[SPELL] Cast {spell_name} at ({tx:.0f}, {ty:.0f})")
             return True
         return False
@@ -283,11 +322,16 @@ class SpellManager:
 
             # Apply damage on first frame
             if not spell.has_applied_damage:
+                old_hit_count = len(spell.hit_monsters)
                 new_spells = spell.apply_effects(all_monsters)
+                if len(spell.hit_monsters) > old_hit_count and self.sfx_manager:
+                    self.sfx_manager.play("action", "monster_hit")
                 for ns in new_spells:
+                    ns_cfg = ns.get("config", self.spell_configs.get(ns["spell_name"]))
+                    if not ns_cfg:
+                        continue
                     effect = self._create_spell_effect(
-                        ns["spell_name"],
-                        self.spell_configs[ns["spell_name"]],
+                        ns["spell_name"], ns_cfg,
                         ns["x"], ns["y"], ns.get("target")
                     )
                     if effect:

@@ -14,6 +14,12 @@ import json
 import time
 from pathlib import Path
 
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    _HAS_NUMPY = False
+
 # Paths
 PYGAME_DIR = Path(__file__).parent.parent
 DATA_DIR = PYGAME_DIR / "data"
@@ -88,6 +94,7 @@ class SfxTester:
 
         # Current config values (editable)
         self.cur_volume = 1.0
+        self.cur_speed = 1.0
         self.cur_start = 0.0
         self.cur_end = 0.0
 
@@ -132,6 +139,7 @@ class SfxTester:
             self.sound = pygame.mixer.Sound(str(file_path))
             self.sound_length = self.sound.get_length()
             self.cur_volume = cfg.get("volume", 1.0)
+            self.cur_speed = cfg.get("speed", 1.0)
             self.cur_start = cfg.get("start", 0.0)
             self.cur_end = cfg.get("end", 0.0)
             self.sound.set_volume(self.cur_volume)
@@ -145,16 +153,25 @@ class SfxTester:
         if not self.sound:
             return
         self._stop_playback()
-        self.sound.set_volume(self.cur_volume)
+        play_sound = self.sound
+        # Apply speed via resampling
+        if _HAS_NUMPY and self.cur_speed != 1.0:
+            try:
+                arr = pygame.sndarray.array(self.sound)
+                new_len = int(len(arr) / self.cur_speed)
+                if new_len > 0:
+                    indices = np.linspace(0, len(arr) - 1, new_len).astype(np.int32)
+                    play_sound = pygame.sndarray.make_sound(arr[indices])
+            except Exception:
+                pass
+        play_sound.set_volume(self.cur_volume)
         # Calculate effective start/end
-        start_ms = int(self.cur_start * 1000)
         end_sec = self.cur_end if self.cur_end > 0 else self.sound_length
-        duration_ms = max(0, int((end_sec - self.cur_start) * 1000))
+        duration_ms = max(0, int((end_sec - self.cur_start) * 1000 / self.cur_speed))
         if duration_ms <= 0:
             return
-        self.channel = self.sound.play(maxtime=duration_ms, fade_ms=0)
-        # Seek not natively supported by pygame mixer for Sound objects,
-        # so we use a workaround: load a trimmed portion if start > 0
+        self.channel = play_sound.play(maxtime=duration_ms, fade_ms=0)
+        self._play_sound_ref = play_sound  # prevent GC
         self.playing = True
         self.play_start_time = time.time()
         self.play_offset = self.cur_start
@@ -182,12 +199,13 @@ class SfxTester:
         if not cfg:
             return
         cfg["volume"] = round(self.cur_volume, 2)
+        cfg["speed"] = round(self.cur_speed, 2)
         cfg["start"] = round(self.cur_start, 2)
         cfg["end"] = round(self.cur_end, 2)
         save_config(self.config)
         cat = self.categories[self.selected_cat]
         sfx = self.sfx_names[self.selected_sfx]
-        print(f"[SAVED] {cat}/{sfx}: vol={self.cur_volume:.2f} start={self.cur_start:.2f} end={self.cur_end:.2f}")
+        print(f"[SAVED] {cat}/{sfx}: vol={self.cur_volume:.2f} speed={self.cur_speed:.2f} start={self.cur_start:.2f} end={self.cur_end:.2f}")
 
     def _reload_config(self):
         old_cat = self.categories[self.selected_cat] if self.categories else None
@@ -302,8 +320,19 @@ class SfxTester:
             self._save_current()
             return
 
+        # Speed controls
+        speed_y = 190
+        if pygame.Rect(CONTENT_X + 130, speed_y, 36, BTN_H).collidepoint(mx, my):
+            self.cur_speed = round(max(0.25, self.cur_speed - 0.05), 2)
+            self._save_current()
+            return
+        if pygame.Rect(CONTENT_X + 330, speed_y, 36, BTN_H).collidepoint(mx, my):
+            self.cur_speed = round(min(3.0, self.cur_speed + 0.05), 2)
+            self._save_current()
+            return
+
         # Start controls
-        start_y = 190
+        start_y = 240
         if pygame.Rect(CONTENT_X + 130, start_y, 36, BTN_H).collidepoint(mx, my):
             self.cur_start = round(max(0.0, self.cur_start - 0.1), 2)
             self._save_current()
@@ -315,7 +344,7 @@ class SfxTester:
             return
 
         # End controls
-        end_y = 240
+        end_y = 290
         if pygame.Rect(CONTENT_X + 130, end_y, 36, BTN_H).collidepoint(mx, my):
             new_end = round(self.cur_end - 0.1, 2)
             if new_end <= self.cur_start:
@@ -332,7 +361,7 @@ class SfxTester:
             return
 
         # Loop toggle
-        loop_y = 290
+        loop_y = 340
         if pygame.Rect(CONTENT_X + 130, loop_y, 100, BTN_H).collidepoint(mx, my):
             cfg = self._get_current_cfg()
             if cfg:
@@ -439,17 +468,21 @@ class SfxTester:
         vol_y = 140
         self._draw_param_row(param_x, vol_y, "Volume", f"{self.cur_volume:.2f}", mouse_pos)
 
+        # Speed
+        speed_y = 190
+        self._draw_param_row(param_x, speed_y, "Speed", f"{self.cur_speed:.2f}x", mouse_pos)
+
         # Start
-        start_y = 190
+        start_y = 240
         self._draw_param_row(param_x, start_y, "Start (s)", f"{self.cur_start:.2f}", mouse_pos)
 
         # End
-        end_y = 240
+        end_y = 290
         end_display = f"{self.cur_end:.2f}" if self.cur_end > 0 else f"0 (full)"
         self._draw_param_row(param_x, end_y, "End (s)", end_display, mouse_pos)
 
         # Loop toggle
-        loop_y = 290
+        loop_y = 340
         cfg = self._get_current_cfg()
         loop_val = cfg.get("loop", False) if cfg else False
         self.screen.blit(self.font.render("Loop", True, TEXT_COLOR), (param_x, loop_y + 8))

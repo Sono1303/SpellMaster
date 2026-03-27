@@ -280,6 +280,7 @@ class Player(Entity):
         self.casting_frame_counter = 0
         self.selected_spell_index = 0  # 0-9 maps to spell keys
         self._spell_ready_to_fire = False  # Consumed by SpellManager
+        self.sfx_manager = None  # Set externally after init
 
     @property
     def col_x(self) -> float:
@@ -545,6 +546,8 @@ class Player(Entity):
             self.casting_stage = "pre_cast"
             self.set_state(EntityState.PRE_CAST, reset_frame=True)
             self.casting_frame_counter = 0
+            if self.sfx_manager:
+                self.sfx_manager.play("action", "chanting_spell")
             print(f"{self.name} is casting a spell! Mana: {self.mana}")
         else:
             print(f"{self.name} doesn't have enough mana!")
@@ -559,6 +562,8 @@ class Player(Entity):
             self._spell_ready_to_fire = True
             self.casting_stage = "post_cast"
             self.set_state(EntityState.POST_CAST, reset_frame=True)
+            if self.sfx_manager:
+                self.sfx_manager.stop("action", "chanting_spell")
     
     def cast_spell(self):
         """
