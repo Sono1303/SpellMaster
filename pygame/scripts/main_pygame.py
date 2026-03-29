@@ -22,9 +22,10 @@ from map_data import LEVEL_1_BASE, LEVEL_1_OBJECTS, MAP_DIMENSIONS
 from map_engine import TileManager, TileMap
 from resource_manager import ResourceManager, AnimationCache
 from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
-from spell import SpellManager, SPELL_NAMES
+from spell import SpellManager
 from sfx_manager import SFXManager
 from player_ui import PlayerUI
+from spell_bar import SpellBar
 import json
 
 MONSTER_TYPES = list(STAT_CONFIG["monsters"].keys())
@@ -56,6 +57,7 @@ GAME_OVER = False
 SPELL_MANAGER = None
 SFX_MANAGER = None
 PLAYER_UI = None
+SPELL_BAR = None
 
 # Wave system state (normal mode)
 CURRENT_WAVE = 0
@@ -152,7 +154,7 @@ def initialize_game_resources() -> tuple:
         resource_manager=resource_manager
     )
 
-    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER, SFX_MANAGER, PLAYER_UI
+    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER, SFX_MANAGER, PLAYER_UI, SPELL_BAR
 
     ANIMATION_CACHE = AnimationCache()
     animations_json = PYGAME_DIR / "data" / "animations_config.json"
@@ -198,6 +200,7 @@ def initialize_game_resources() -> tuple:
     PLAYER.sfx_manager = SFX_MANAGER
     PLAYER_UI = PlayerUI(PLAYER)
     SPELL_MANAGER = SpellManager(ANIMATION_CACHE, sfx_manager=SFX_MANAGER)
+    SPELL_BAR = SpellBar()
 
     print(f"[OK] Player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
     print(f"[OK] Portals: {len(PORTALS)}")
@@ -341,14 +344,35 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
 
     if PLAYER_UI:
         PLAYER_UI.update(dt)
+    if SPELL_BAR:
+        SPELL_BAR.update(dt)
 
     # Spell system
     if SPELL_MANAGER and PLAYER:
+        # Block selection of locked spells
+        if SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index):
+            SPELL_BAR.try_select(PLAYER.selected_spell_index)
+            PLAYER.selected_spell_index = SPELL_MANAGER.selected_spell_index  # revert
         SPELL_MANAGER.selected_spell_index = PLAYER.selected_spell_index
+
         if PLAYER._spell_ready_to_fire:
             PLAYER._spell_ready_to_fire = False
-            alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
-            SPELL_MANAGER.cast(PLAYER, alive)
+            if SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index):
+                SPELL_BAR.try_select(PLAYER.selected_spell_index)
+            else:
+                alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+                if SPELL_MANAGER.cast(PLAYER, alive) and SPELL_BAR:
+                    SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
+                    SPELL_BAR.consume_unlock(PLAYER.selected_spell_index)
+
+        # Track monster kills
+        if SPELL_BAR:
+            alive_now = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+            new_kills = getattr(SPELL_BAR, '_prev_alive', len(alive_now)) - len(alive_now)
+            if new_kills > 0:
+                SPELL_BAR.add_kills(new_kills)
+            SPELL_BAR._prev_alive = len(alive_now)
+
         alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
         SPELL_MANAGER.update(dt, alive)
         SPELL_MANAGER.update_curse_spread([m for m in MONSTERS if m is not None])
@@ -535,16 +559,16 @@ def _draw_wave_banner(screen):
     cy = screen.get_height() // 2
 
     if WAVE_COUNTDOWN_ACTIVE:
-        # Full-width banner: "Wave X / N" + countdown number
+        # Full-width banner: "Wave X" + countdown number
         wave_font = pygame.font.Font(None, 52)
         count_font = pygame.font.Font(None, 80)
 
-        wave_text = wave_font.render(f"Wave {CURRENT_WAVE + 1} / {total_waves}", True, (255, 60, 60))
+        wave_text = wave_font.render(f"Wave {CURRENT_WAVE + 1}", True, (255, 60, 60))
         secs = max(1, int(WAVE_COUNTDOWN) + 1)
         count_text = count_font.render(str(secs), True, (255, 0, 0))
 
         banner_h = wave_text.get_height() + count_text.get_height() + 24
-        banner_y = cy - banner_h - 20
+        banner_y = cy - banner_h // 2
 
         bg = pygame.Surface((sw, banner_h))
         bg.fill((0, 0, 0))
@@ -562,7 +586,7 @@ def _draw_wave_banner(screen):
         wave_text = wave_font.render(f"Wave {CURRENT_WAVE + 1} Start!", True, (255, 0, 0))
 
         banner_h = wave_text.get_height() + 16
-        banner_y = cy - banner_h - 20
+        banner_y = cy - banner_h // 2
 
         alpha = min(160, int(160 * (WAVE_ANNOUNCE_TIMER / WAVE_ANNOUNCE_DURATION)))
         bg = pygame.Surface((sw, banner_h))
@@ -576,13 +600,13 @@ def _draw_wave_banner(screen):
 
     # Persistent wave indicator — top-right corner
     if not ALL_WAVES_DONE:
-        ind_font = pygame.font.Font(None, 24)
+        ind_font = pygame.font.Font(None, 36)
         ind_text = ind_font.render(f"Wave {CURRENT_WAVE + 1}/{total_waves}", True, (255, 200, 200))
-        ind_bg = pygame.Surface((ind_text.get_width() + 10, ind_text.get_height() + 6))
+        ind_bg = pygame.Surface((ind_text.get_width() + 14, ind_text.get_height() + 8))
         ind_bg.fill((0, 0, 0))
         ind_bg.set_alpha(140)
-        screen.blit(ind_bg, (sw - ind_bg.get_width() - 5, 5))
-        screen.blit(ind_text, (sw - ind_text.get_width() - 10, 8))
+        screen.blit(ind_bg, (sw - ind_bg.get_width() - 8, 8))
+        screen.blit(ind_text, (sw - ind_text.get_width() - 15, 12))
 
 
 def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: ResourceManager = None, decorations: list = None):
@@ -689,18 +713,9 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
         screen.blit(text_bg, (5, 5))
         screen.blit(text_surface, (10, 7))
 
-    # Spell selection HUD
-    if SPELL_MANAGER and PLAYER and not GAME_OVER:
-        spell_name = SPELL_NAMES[PLAYER.selected_spell_index] if PLAYER.selected_spell_index < len(SPELL_NAMES) else "?"
-        hud_font = pygame.font.Font(None, 24)
-        spell_text = hud_font.render(
-            f"Spell [{PLAYER.selected_spell_index}]: {spell_name.capitalize()}  |  Mana: {PLAYER.mana}/{PLAYER.max_mana}",
-            True, (255, 255, 255))
-        bg = pygame.Surface((spell_text.get_width() + 10, spell_text.get_height() + 4))
-        bg.fill((0, 0, 0))
-        bg.set_alpha(160)
-        screen.blit(bg, (5, screen.get_height() - 28))
-        screen.blit(spell_text, (10, screen.get_height() - 26))
+    # Spell icon bar
+    if SPELL_BAR and PLAYER and not GAME_OVER:
+        SPELL_BAR.draw(screen, PLAYER.selected_spell_index)
 
     # Wave countdown / announcement banner
     if not SPELL_TEST_MODE and not GAME_OVER:

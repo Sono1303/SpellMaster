@@ -700,6 +700,10 @@ class Monster(Entity):
         self._hp_fill = pygame.transform.scale(Monster._hp_fill_raw, (max(fill_w, 1), max(fill_h, 1)))
         self._hp_border = pygame.transform.scale(Monster._hp_border_raw, (self._hp_bar_w, self._hp_bar_h))
 
+        # Smooth HP bar display
+        self.display_health = float(self.max_health)
+        self._hp_lerp_speed = 80.0  # HP units per second
+
         # Status effects
         self._base_move_speed = self.move_speed
         self.cursed = False
@@ -722,6 +726,11 @@ class Monster(Entity):
 
     def update(self, dt: float):
         self.attack_timer = max(0, self.attack_timer - dt)
+
+        # Smooth HP bar interpolation
+        if self.display_health > self.health:
+            self.display_health = max(float(self.health),
+                                      self.display_health - self._hp_lerp_speed * dt)
 
         # --- Status effect ticking ---
         burn = self._status["burn"]
@@ -1041,7 +1050,7 @@ class Monster(Entity):
                 fill.set_alpha(self._fade_alpha)
             surface.blit(border, (bar_x, bar_y))
             # Fill cropped by HP ratio (inset by padding)
-            hp_ratio = self.health / self.max_health
+            hp_ratio = self.display_health / self.max_health
             fill_max_w = self._hp_bar_w - self._hp_pad_x * 2
             fill_h = self._hp_bar_h - self._hp_pad_y * 2
             if hp_ratio > 0 and fill_max_w > 0 and fill_h > 0:
@@ -1086,6 +1095,10 @@ class Statue(Entity):
         self.hp_bar_fill = pygame.transform.scale(self.hp_bar_fill, (self.hp_bar_width, self.hp_bar_height))
         self.hp_bar_frame = pygame.transform.scale(self.hp_bar_frame, (self.hp_bar_width, self.hp_bar_height))
 
+        # Smooth HP bar display
+        self.display_health = float(self.max_health)
+        self._hp_lerp_speed = 60.0
+
     @property
     def col_x(self) -> float:
         return self.x + self.target_offset_x
@@ -1098,7 +1111,9 @@ class Statue(Entity):
         pass
 
     def update(self, dt: float):
-        pass
+        if self.display_health > self.health:
+            self.display_health = max(float(self.health),
+                                      self.display_health - self._hp_lerp_speed * dt)
 
     def draw(self, surface: pygame.Surface):
         # Draw statue sprite
@@ -1117,7 +1132,7 @@ class Statue(Entity):
         surface.blit(self.hp_bar_frame, (bar_x, bar_y))
 
         # Draw fill on top, cropped by HP ratio
-        hp_ratio = self.health / self.max_health
+        hp_ratio = self.display_health / self.max_health
         if hp_ratio > 0:
             fill_width = int(self.hp_bar_width * hp_ratio)
             surface.blit(self.hp_bar_fill, (bar_x, bar_y), pygame.Rect(0, 0, fill_width, self.hp_bar_height))

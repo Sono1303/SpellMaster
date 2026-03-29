@@ -42,10 +42,9 @@ class SpellEffect:
 
         # For special effects
         self.special = config.get("special")
-        self.second_hit_timer = -1  # double_hit
-        self.explosion_timer = -1   # delayed_explosion
-        self.kill_bonus_timer = -1  # kill_bonus (crystal)
-        self.kill_bonus_data = None
+        self.special_timer = -1       # unified delay for chain/double_hit/kill_bonus
+        self.special_data = None      # stored data for delayed effects
+        self.explosion_timer = -1     # delayed_explosion (separate: delays damage, not effect)
         self.marked_x = 0.0
         self.marked_y = 0.0
 
@@ -151,22 +150,23 @@ class SpellEffect:
 
         # Handle special effects
         if self.special == "chain":
-            new_spells.extend(self._handle_chain(all_monsters))
+            self._prepare_chain(all_monsters)
         elif self.special == "curse_spread":
             for m in targets:
                 m.cursed = True
         elif self.special == "double_hit":
             self.marked_x = self.x
             self.marked_y = self.y
-            self.second_hit_timer = cfg.get("double_hit_delay", 1.0)
+            self.special_timer = cfg.get("special_effect_delay", 1.0)
+            self.special_data = {"type": "double_hit"}
         elif self.special == "kill_bonus":
-            new_spells.extend(self._handle_kill_bonus(all_monsters))
+            self._prepare_kill_bonus(all_monsters)
 
         return new_spells
 
-    def _handle_chain(self, all_monsters: list) -> list:
-        """Lightning chain: if target killed, chain to nearest alive monster."""
-        new_spells = []
+    def _prepare_chain(self, all_monsters: list):
+        """Lightning chain: store chain targets for delayed effect."""
+        chain_targets = []
         for m in self.hit_monsters:
             if not m.is_alive():
                 nearest = None
@@ -183,34 +183,30 @@ class SpellEffect:
                         best_dist = d
                         nearest = other
                 if nearest:
-                    ox = getattr(nearest, 'col_x', nearest.x) + getattr(nearest, 'collision_width', 0) / 2
-                    oy = getattr(nearest, 'col_y', nearest.y) + getattr(nearest, 'collision_height', 0) / 2
-                    new_spells.append({
-                        "spell_name": self.spell_name,
-                        "x": ox, "y": oy,
-                        "target": nearest
-                    })
-        return new_spells
+                    chain_targets.append(nearest)
+        if chain_targets:
+            self.special_data = {"type": "chain", "targets": chain_targets}
+            self.special_timer = self.config.get("special_effect_delay", 0.5)
 
-    def _handle_kill_bonus(self, all_monsters: list) -> list:
-        """Crystal: if killed mobs, store bonus data for delayed redistribution."""
+    def _prepare_kill_bonus(self, all_monsters: list):
+        """Crystal: store bonus data for delayed redistribution."""
         killed_count = sum(1 for m in self.hit_monsters if not m.is_alive())
         if killed_count == 0:
-            return []
+            return
 
         total_damage = self.config["damage"] * killed_count
-        self.kill_bonus_data = {
+        self.special_data = {
+            "type": "kill_bonus",
             "total_damage": total_damage,
             "origin_x": self.x,
             "origin_y": self.y,
         }
-        self.kill_bonus_timer = self.config.get("kill_bonus_delay", 0.5)
-        return []
+        self.special_timer = self.config.get("special_effect_delay", 0.5)
 
     def _apply_kill_bonus(self, all_monsters: list) -> list:
         """Crystal: apply delayed bonus damage + crystal_mini animations."""
         new_spells = []
-        data = self.kill_bonus_data
+        data = self.special_data
         if not data:
             return new_spells
 
@@ -260,7 +256,7 @@ class SpellEffect:
                 "target": m
             })
 
-        self.kill_bonus_data = None
+        self.special_data = None
         return new_spells
 
 
@@ -357,36 +353,49 @@ class SpellManager:
                     if effect:
                         pending.append(effect)
 
-            # Double hit timer
-            if spell.second_hit_timer > 0:
-                spell.second_hit_timer -= dt
-                if spell.second_hit_timer <= 0:
-                    cfg_copy = dict(spell.config)
-                    cfg_copy["special"] = None  # prevent infinite recursion
-                    effect = self._create_spell_effect(
-                        spell.spell_name, cfg_copy,
-                        spell.marked_x, spell.marked_y, None
-                    )
-                    if effect:
-                        pending.append(effect)
+            # Unified special effect timer (chain / double_hit / kill_bonus)
+            if spell.special_timer > 0:
+                spell.special_timer -= dt
+                if spell.special_timer <= 0 and spell.special_data:
+                    stype = spell.special_data["type"]
 
-            # Kill bonus timer (crystal delayed redistribution)
-            if spell.kill_bonus_timer > 0:
-                spell.kill_bonus_timer -= dt
-                if spell.kill_bonus_timer <= 0:
-                    bonus_spells = spell._apply_kill_bonus(all_monsters)
-                    if bonus_spells and self.sfx_manager:
-                        self.sfx_manager.play("action", "monster_hit")
-                    for ns in bonus_spells:
-                        ns_cfg = ns.get("config", self.spell_configs.get(ns["spell_name"]))
-                        if not ns_cfg:
-                            continue
+                    if stype == "double_hit":
+                        cfg_copy = dict(spell.config)
+                        cfg_copy["special"] = None
                         effect = self._create_spell_effect(
-                            ns["spell_name"], ns_cfg,
-                            ns["x"], ns["y"], ns.get("target")
+                            spell.spell_name, cfg_copy,
+                            spell.marked_x, spell.marked_y, None
                         )
                         if effect:
                             pending.append(effect)
+
+                    elif stype == "chain":
+                        for target in spell.special_data["targets"]:
+                            if target.is_alive() or not getattr(target, '_dying', False):
+                                ox = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
+                                oy = getattr(target, 'col_y', target.y) + getattr(target, 'collision_height', 0) / 2
+                                effect = self._create_spell_effect(
+                                    spell.spell_name, spell.config, ox, oy, target
+                                )
+                                if effect:
+                                    pending.append(effect)
+
+                    elif stype == "kill_bonus":
+                        bonus_spells = spell._apply_kill_bonus(all_monsters)
+                        if bonus_spells and self.sfx_manager:
+                            self.sfx_manager.play("action", "monster_hit")
+                        for ns in bonus_spells:
+                            ns_cfg = ns.get("config", self.spell_configs.get(ns["spell_name"]))
+                            if not ns_cfg:
+                                continue
+                            effect = self._create_spell_effect(
+                                ns["spell_name"], ns_cfg,
+                                ns["x"], ns["y"], ns.get("target")
+                            )
+                            if effect:
+                                pending.append(effect)
+
+                    spell.special_data = None
 
             # Delayed explosion timer — re-enable damage when timer expires
             if spell.explosion_timer > 0:
@@ -399,7 +408,7 @@ class SpellManager:
         # Remove finished spells (no pending timers)
         self.active_spells = [
             s for s in self.active_spells
-            if not s.finished or s.second_hit_timer > 0 or s.explosion_timer > 0 or s.kill_bonus_timer > 0
+            if not s.finished or s.special_timer > 0 or s.explosion_timer > 0
         ]
 
     def update_curse_spread(self, all_monsters: list):
