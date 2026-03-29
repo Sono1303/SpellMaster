@@ -17,6 +17,28 @@
     }
   },
 
+  "player_ui": {
+    "hp": {
+      "offset_x": 10,
+      "offset_y": 10,
+      "scale": 3.0,
+      "spacing": -15,
+      "per_container": 10,
+      "blink_frame_duration": 0.1,
+      "blink_cycles": 2,
+      "spawn_frame_duration": 0.05
+    },
+    "mp": {
+      "offset_x": 10,
+      "offset_y": 46,
+      "scale": 3.0,
+      "spacing": -15,
+      "per_container": 10,
+      "blink_frame_duration": 0.1,
+      "blink_cycles": 2
+    }
+  },
+
   "monsters": {
     "orc": {
       "max_health": 30,

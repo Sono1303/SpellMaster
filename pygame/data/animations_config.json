@@ -288,7 +288,7 @@
         "scale": 3.0
       }
     },
-    "skeleton":{
+    "skeleton": {
       "idle": {
         "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
         "grid_rows": 7,
@@ -771,6 +771,48 @@
         "start_col": 0,
         "frame_count": 8,
         "frame_duration": 0.2,
+        "scale": 5.0
+      }
+    },
+    "player_ui": {
+      "hp_blink_full": {
+        "sprite_sheet": "../ingame_assets/ui/player_hp_mp/heart_normal_blink_full.png",
+        "grid_rows": 1,
+        "grid_cols": 3,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 3,
+        "frame_duration": 0.4,
+        "scale": 5.0
+      },
+      "hp_blink_half": {
+        "sprite_sheet": "../ingame_assets/ui/player_hp_mp/heart_normal_blink_half.png",
+        "grid_rows": 1,
+        "grid_cols": 3,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 3,
+        "frame_duration": 0.4,
+        "scale": 5.0
+      },
+      "mp_blink_full": {
+        "sprite_sheet": "../ingame_assets/ui/player_hp_mp/mana_normal_blink_full.png",
+        "grid_rows": 1,
+        "grid_cols": 3,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 3,
+        "frame_duration": 0.4,
+        "scale": 5.0
+      },
+      "mp_blink_half": {
+        "sprite_sheet": "../ingame_assets/ui/player_hp_mp/mana_normal_blink_half.png",
+        "grid_rows": 1,
+        "grid_cols": 3,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 3,
+        "frame_duration": 0.4,
         "scale": 5.0
       }
     },

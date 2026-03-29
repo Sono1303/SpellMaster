@@ -24,6 +24,7 @@ from resource_manager import ResourceManager, AnimationCache
 from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
 from spell import SpellManager, SPELL_NAMES
 from sfx_manager import SFXManager
+from player_ui import PlayerUI
 
 
 # ============================================================================
@@ -34,7 +35,7 @@ FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
 DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
-SPELL_TEST_MODE = True            # Spawn 5 monsters in center, respawn on kill
+SPELL_TEST_MODE = False            # Spawn 5 monsters in center, respawn on kill
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -51,6 +52,7 @@ SPAWN_MAX = STAT_CONFIG["spawner"]["max_monsters"]
 SPAWN_COUNT = 0
 SPELL_MANAGER = None
 SFX_MANAGER = None
+PLAYER_UI = None
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -134,7 +136,7 @@ def initialize_game_resources() -> tuple:
         resource_manager=resource_manager
     )
 
-    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER, SFX_MANAGER
+    global ANIMATION_CACHE, PLAYER, MONSTERS, STATUE, PORTALS, SPELL_MANAGER, SFX_MANAGER, PLAYER_UI
 
     ANIMATION_CACHE = AnimationCache()
     animations_json = PYGAME_DIR / "data" / "animations_config.json"
@@ -175,6 +177,7 @@ def initialize_game_resources() -> tuple:
 
     SFX_MANAGER = SFXManager()
     PLAYER.sfx_manager = SFX_MANAGER
+    PLAYER_UI = PlayerUI(PLAYER)
     SPELL_MANAGER = SpellManager(ANIMATION_CACHE, sfx_manager=SFX_MANAGER)
 
     print(f"[OK] Player: {PLAYER.name} at ({PLAYER.x}, {PLAYER.y})")
@@ -212,6 +215,9 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
         PLAYER.handle_input()
         PLAYER.move(tile_map=tile_map, dt=dt, debug=debug_collision, decorations=decorations, monsters=MONSTERS)
         PLAYER.update(dt)
+
+    if PLAYER_UI:
+        PLAYER_UI.update(dt)
 
     # Spell system
     if SPELL_MANAGER and PLAYER:
@@ -345,6 +351,8 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
     # Check Game Over
     if STATUE and not STATUE.is_alive():
         GAME_OVER = True
+    if PLAYER and not PLAYER.is_alive():
+        GAME_OVER = True
 
 
 def pixel_to_tile(pixel_x: int, pixel_y: int, tile_size: int = 64) -> tuple:
@@ -427,14 +435,14 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     for portal in PORTALS:
         portal.draw(screen)
 
-    # Entities
+    # Entities (monsters first, player on top)
     if STATUE:
         STATUE.draw(screen)
-    if PLAYER:
-        PLAYER.draw(screen)
     for monster in MONSTERS:
         if monster is not None:
             monster.draw(screen)
+    if PLAYER:
+        PLAYER.draw(screen)
 
     # Active spell effects
     if SPELL_MANAGER:
@@ -489,6 +497,10 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
             if DEBUG_FONT:
                 label = f"monster ({mx},{my}) {mw}x{mh}"
                 screen.blit(DEBUG_FONT.render(label, True, (255, 0, 255)), (mx, my - 14))
+
+    # Player HP/MP UI
+    if PLAYER_UI and PLAYER and not GAME_OVER:
+        PLAYER_UI.draw(screen)
 
     # HUD overlay
     if DEBUG_MODE:
