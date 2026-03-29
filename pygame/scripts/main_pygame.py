@@ -25,6 +25,13 @@ from entity import Player, Monster, Statue, Portal, EntityState, STAT_CONFIG
 from spell import SpellManager, SPELL_NAMES
 from sfx_manager import SFXManager
 from player_ui import PlayerUI
+import json
+
+MONSTER_TYPES = list(STAT_CONFIG["monsters"].keys())
+
+_LEVEL_CONFIG_PATH = Path(__file__).parent.parent / "data" / "level_config.json"
+with open(_LEVEL_CONFIG_PATH, "r") as _f:
+    LEVEL_CONFIG = json.load(_f)
 
 
 # ============================================================================
@@ -34,8 +41,8 @@ from player_ui import PlayerUI
 FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
-SPELL_TEST_MODE = False            # Spawn 5 monsters in center, respawn on kill
+DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
+SPELL_TEST_MODE = True            # Spawn monsters in center for testing
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -46,13 +53,18 @@ MONSTERS = []
 STATUE = None
 PORTALS = []
 GAME_OVER = False
-SPAWN_TIMER = 0.0
-SPAWN_DELAY = STAT_CONFIG["spawner"]["delay"]
-SPAWN_MAX = STAT_CONFIG["spawner"]["max_monsters"]
-SPAWN_COUNT = 0
 SPELL_MANAGER = None
 SFX_MANAGER = None
 PLAYER_UI = None
+
+# Wave system state (normal mode)
+CURRENT_WAVE = 0
+WAVE_MONSTERS_LEFT = []       # queue of monster types to spawn this wave
+WAVE_SPAWN_TIMER = 0.0
+WAVE_SPAWN_DELAY = 3.0
+WAVE_CLEAR_TIMER = 0.0       # countdown between waves
+WAVE_WAITING = False          # True = waiting for wave_delay before next wave
+ALL_WAVES_DONE = False
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -156,7 +168,6 @@ def initialize_game_resources() -> tuple:
             decoration.setdefault("height", 64)
 
     player_cfg = STAT_CONFIG["player"]
-    portal_cfg = STAT_CONFIG["portal"]
     statue_cfg = STAT_CONFIG["statue"]
 
     PLAYER = Player(
@@ -165,10 +176,14 @@ def initialize_game_resources() -> tuple:
         name="Wizard"
     )
 
-    PORTALS = [
-        Portal(x=portal_cfg["spawn"]["x"], y=portal_cfg["spawn"]["y"],
-               animation_cache=ANIMATION_CACHE),
-    ]
+    PORTALS = []
+    for pcfg in LEVEL_CONFIG.get("portals", []):
+        PORTALS.append(Portal(
+            x=pcfg["x"], y=pcfg["y"],
+            animation_cache=ANIMATION_CACHE,
+            spawn_offset_x=pcfg.get("spawn_offset_x"),
+            spawn_offset_y=pcfg.get("spawn_offset_y"),
+        ))
 
     MONSTERS = []
 
@@ -207,9 +222,83 @@ def handle_events() -> bool:
     return True
 
 
+def _spawn_monster_at_portal(mtype, portal_index=0):
+    """Spawn a monster at the specified portal."""
+    if not PORTALS:
+        return
+    portal = PORTALS[portal_index % len(PORTALS)]
+    spawn_x = portal.x + portal.spawn_offset_x
+    spawn_y = portal.y + portal.spawn_offset_y
+    m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type=mtype)
+    m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
+    m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
+    MONSTERS.append(m)
+    if SFX_MANAGER:
+        SFX_MANAGER.play("action", "monster_spawn")
+    print(f"[WAVE {CURRENT_WAVE + 1}] Spawned {mtype} at portal {portal_index} ({spawn_x:.0f}, {spawn_y:.0f})")
+
+
+def _update_wave_spawn(dt):
+    """Wave-based monster spawning for normal mode."""
+    global CURRENT_WAVE, WAVE_MONSTERS_LEFT, WAVE_SPAWN_TIMER, WAVE_SPAWN_DELAY
+    global WAVE_CLEAR_TIMER, WAVE_WAITING, ALL_WAVES_DONE
+
+    if ALL_WAVES_DONE:
+        return
+
+    normal_cfg = LEVEL_CONFIG.get("normal_mode", {})
+    waves = normal_cfg.get("waves", [])
+    if not waves:
+        return
+
+    # Start first wave
+    if CURRENT_WAVE == 0 and not WAVE_MONSTERS_LEFT and not WAVE_WAITING and not MONSTERS:
+        wave = waves[0]
+        WAVE_MONSTERS_LEFT = list(wave.get("monsters", []))
+        WAVE_SPAWN_DELAY = wave.get("spawn_delay", normal_cfg.get("spawn_delay", 3.0))
+        WAVE_SPAWN_TIMER = WAVE_SPAWN_DELAY  # spawn first monster immediately
+        print(f"[WAVE 1/{len(waves)}] Starting — {len(WAVE_MONSTERS_LEFT)} monsters")
+
+    # Waiting between waves
+    if WAVE_WAITING:
+        alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+        if len(alive) == 0:
+            WAVE_CLEAR_TIMER += dt
+            wave_delay = normal_cfg.get("wave_delay", 5.0)
+            if WAVE_CLEAR_TIMER >= wave_delay:
+                WAVE_WAITING = False
+                WAVE_CLEAR_TIMER = 0.0
+                CURRENT_WAVE += 1
+                if CURRENT_WAVE >= len(waves):
+                    ALL_WAVES_DONE = True
+                    print("[WAVES] All waves complete!")
+                    return
+                wave = waves[CURRENT_WAVE]
+                WAVE_MONSTERS_LEFT = list(wave.get("monsters", []))
+                WAVE_SPAWN_DELAY = wave.get("spawn_delay", normal_cfg.get("spawn_delay", 3.0))
+                WAVE_SPAWN_TIMER = WAVE_SPAWN_DELAY
+                print(f"[WAVE {CURRENT_WAVE + 1}/{len(waves)}] Starting — {len(WAVE_MONSTERS_LEFT)} monsters")
+        return
+
+    # Spawn monsters from queue
+    if WAVE_MONSTERS_LEFT:
+        WAVE_SPAWN_TIMER += dt
+        if WAVE_SPAWN_TIMER >= WAVE_SPAWN_DELAY:
+            WAVE_SPAWN_TIMER = 0.0
+            entry = WAVE_MONSTERS_LEFT.pop(0)
+            mtype = entry["type"]
+            portal_idx = entry.get("portal", 0)
+            _spawn_monster_at_portal(mtype, portal_idx)
+
+        # Queue empty → wait for all monsters to die before next wave
+        if not WAVE_MONSTERS_LEFT:
+            WAVE_WAITING = True
+            WAVE_CLEAR_TIMER = 0.0
+
+
 def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):
     """Update player input/movement/animation and monster AI."""
-    global GAME_OVER, SPAWN_TIMER, SPAWN_COUNT
+    global GAME_OVER
 
     if PLAYER:
         PLAYER.handle_input()
@@ -240,49 +329,40 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
     if not SPELL_TEST_MODE:
         MONSTERS[:] = [m for m in MONSTERS if not m._fully_dead]
 
-    # === SPELL_TEST_MODE: maintain 5 monsters in fixed positions, respawn at same spot ===
+    # === SPELL_TEST_MODE: spawn configured monsters in fixed positions ===
     if SPELL_TEST_MODE:
-        SPELL_TEST_COUNT = 5
+        test_cfg = LEVEL_CONFIG.get("spell_test_mode", {})
+        test_types = test_cfg.get("monsters", ["orc"])
+        test_count = len(test_types)
+        test_spacing = test_cfg.get("spacing", 60)
         map_w = len(LEVEL_1_BASE[0]) * MAP_DIMENSIONS["tile_size"] if LEVEL_1_BASE else 1280
         map_h = len(LEVEL_1_BASE) * MAP_DIMENSIONS["tile_size"] if LEVEL_1_BASE else 960
         center_x = map_w / 2
         center_y = map_h / 2
-        spacing = 60
 
-        # Ensure list always has exactly SPELL_TEST_COUNT slots
-        while len(MONSTERS) < SPELL_TEST_COUNT:
+        # Ensure list always has exactly test_count slots
+        while len(MONSTERS) < test_count:
             MONSTERS.append(None)
+        while len(MONSTERS) > test_count:
+            MONSTERS.pop()
 
-        for slot in range(SPELL_TEST_COUNT):
+        for slot in range(test_count):
             m = MONSTERS[slot]
             if m is not None and not m._fully_dead:
                 continue
             # Respawn at the fixed position for this slot
-            offset = (slot - SPELL_TEST_COUNT // 2) * spacing
-            new_m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
+            offset = (slot - test_count // 2) * test_spacing
+            mtype = test_types[slot]
+            new_m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type=mtype)
             new_m.x = center_x + offset - new_m.collision_offset_x - new_m.collision_width / 2
             new_m.y = center_y - new_m.collision_offset_y - new_m.collision_height / 2
             MONSTERS[slot] = new_m
             if SFX_MANAGER:
                 SFX_MANAGER.play("action", "monster_spawn")
-            print(f"[SPELL_TEST] Spawned monster slot {slot} at ({center_x + offset:.0f}, {center_y:.0f})")
+            print(f"[SPELL_TEST] Spawned {mtype} slot {slot} at ({center_x + offset:.0f}, {center_y:.0f})")
     else:
-        # Normal spawn from portal on interval
-        if SPAWN_COUNT < SPAWN_MAX and PORTALS:
-            SPAWN_TIMER += dt
-            if SPAWN_TIMER >= SPAWN_DELAY:
-                SPAWN_TIMER = 0.0
-                portal = PORTALS[0]
-                spawn_x = portal.x + portal.spawn_offset_x
-                spawn_y = portal.y + portal.spawn_offset_y
-                m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type="orc")
-                m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
-                m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
-                MONSTERS.append(m)
-                SPAWN_COUNT += 1
-                if SFX_MANAGER:
-                    SFX_MANAGER.play("action", "monster_spawn")
-                print(f"[SPAWN] Monster {SPAWN_COUNT}/{SPAWN_MAX} at ({spawn_x:.0f}, {spawn_y:.0f})")
+        # === NORMAL MODE: wave-based spawning ===
+        _update_wave_spawn(dt)
 
     for monster in MONSTERS:
         if monster is None:

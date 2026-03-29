@@ -649,7 +649,7 @@ class Monster(Entity):
         super().__init__(
             x=x, y=y,
             max_health=cfg["max_health"],
-            entity_name="monster",
+            entity_name=monster_type,
             animation_cache=animation_cache,
             initial_state=EntityState.IDLE
         )
@@ -1130,8 +1130,8 @@ class Portal(Entity):
     """
 
     def __init__(self, x: float, y: float, animation_cache,
-                 width: int = None, height: int = None):
-        cfg = STAT_CONFIG["portal"]
+                 width: int = None, height: int = None,
+                 spawn_offset_x: int = None, spawn_offset_y: int = None):
         super().__init__(
             x=x, y=y,
             max_health=1,
@@ -1139,15 +1139,16 @@ class Portal(Entity):
             animation_cache=animation_cache,
             initial_state=EntityState.IDLE
         )
-        self.frame_duration = cfg["frame_duration"]
+        # Use frame_duration from animations_config
+        self.frame_duration = animation_cache.animation_durations.get("portal", {}).get("idle", 0.15)
         self._custom_width = width
         self._custom_height = height
         self.portal_width = width or self._get_frame_size()[0]
         self.portal_height = height or self._get_frame_size()[1]
 
         # Spawn point offset from portal top-left
-        self.spawn_offset_x = cfg.get("spawn_offset_x", self.portal_width // 2)
-        self.spawn_offset_y = cfg.get("spawn_offset_y", self.portal_height // 2)
+        self.spawn_offset_x = spawn_offset_x if spawn_offset_x is not None else self.portal_width // 2
+        self.spawn_offset_y = spawn_offset_y if spawn_offset_y is not None else self.portal_height // 2
 
     def _get_frame_size(self) -> tuple:
         anim = self.animations.get(self.state.value)
