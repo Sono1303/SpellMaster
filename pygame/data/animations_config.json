@@ -288,6 +288,68 @@
         "scale": 3.0
       }
     },
+    "skeleton":{
+      "idle": {
+        "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
+        "grid_rows": 7,
+        "grid_cols": 8,
+        "start_row": 0,
+        "start_col": 0,
+        "frame_count": 6,
+        "frame_duration": 0.13,
+        "scale": 3.0
+      },
+      "walk": {
+        "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
+        "grid_rows": 7,
+        "grid_cols": 8,
+        "start_row": 1,
+        "start_col": 0,
+        "frame_count": 8,
+        "frame_duration": 0.16,
+        "scale": 3.0
+      },
+      "attack_1": {
+        "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
+        "grid_rows": 7,
+        "grid_cols": 8,
+        "start_row": 2,
+        "start_col": 0,
+        "frame_count": 6,
+        "frame_duration": 0.16,
+        "scale": 3.0
+      },
+      "attack_2": {
+        "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
+        "grid_rows": 7,
+        "grid_cols": 8,
+        "start_row": 3,
+        "start_col": 0,
+        "frame_count": 7,
+        "frame_duration": 0.16,
+        "scale": 3.0
+      },
+      "hurt": {
+        "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
+        "grid_rows": 7,
+        "grid_cols": 8,
+        "start_row": 5,
+        "start_col": 0,
+        "frame_count": 4,
+        "frame_duration": 0.12,
+        "scale": 3.0
+      },
+      "death": {
+        "sprite_sheet": "../ingame_assets/character/skeleton/Skeleton.png",
+        "grid_rows": 7,
+        "grid_cols": 8,
+        "start_row": 6,
+        "start_col": 0,
+        "frame_count": 4,
+        "frame_duration": 0.23,
+        "scale": 3.0
+      }
+    },
     "elite_orc": {
       "idle": {
         "sprite_sheet": "../ingame_assets/character/elite_orc/Elite Orc.png",
