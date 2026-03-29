@@ -28,6 +28,7 @@
   "normal_mode": {
     "spawn_delay": 3.0,
     "wave_delay": 5.0,
+    "countdown": 5.0,
     "waves": [
       {
         "monsters": [

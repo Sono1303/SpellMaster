@@ -41,8 +41,8 @@ with open(_LEVEL_CONFIG_PATH, "r") as _f:
 FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
-DRAW_ALL_COLLISION_BOXES = True   # Draw ALL collision boxes for manual editing
-SPELL_TEST_MODE = True            # Spawn monsters in center for testing
+DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
+SPELL_TEST_MODE = False            # Spawn monsters in center for testing
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -65,6 +65,10 @@ WAVE_SPAWN_DELAY = 3.0
 WAVE_CLEAR_TIMER = 0.0       # countdown between waves
 WAVE_WAITING = False          # True = waiting for wave_delay before next wave
 ALL_WAVES_DONE = False
+WAVE_COUNTDOWN = 0.0          # countdown seconds before wave starts
+WAVE_COUNTDOWN_ACTIVE = False # True = showing countdown
+WAVE_ANNOUNCE_TIMER = 0.0     # timer for "Wave X" text display after spawn starts
+WAVE_ANNOUNCE_DURATION = 2.0  # how long to show "Wave X" after countdown ends
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -238,10 +242,36 @@ def _spawn_monster_at_portal(mtype, portal_index=0):
     print(f"[WAVE {CURRENT_WAVE + 1}] Spawned {mtype} at portal {portal_index} ({spawn_x:.0f}, {spawn_y:.0f})")
 
 
+def _start_wave_countdown(wave_index):
+    """Begin countdown for the given wave."""
+    global WAVE_COUNTDOWN, WAVE_COUNTDOWN_ACTIVE, WAVE_ANNOUNCE_TIMER
+    normal_cfg = LEVEL_CONFIG.get("normal_mode", {})
+    WAVE_COUNTDOWN = normal_cfg.get("countdown", 5.0)
+    WAVE_COUNTDOWN_ACTIVE = True
+    WAVE_ANNOUNCE_TIMER = 0.0
+    print(f"[WAVE {wave_index + 1}] Countdown started: {WAVE_COUNTDOWN:.0f}s")
+
+
+def _begin_wave_spawning(wave_index):
+    """Load wave monsters and begin spawning."""
+    global WAVE_MONSTERS_LEFT, WAVE_SPAWN_DELAY, WAVE_SPAWN_TIMER
+    global WAVE_COUNTDOWN_ACTIVE, WAVE_ANNOUNCE_TIMER
+    normal_cfg = LEVEL_CONFIG.get("normal_mode", {})
+    waves = normal_cfg.get("waves", [])
+    wave = waves[wave_index]
+    WAVE_MONSTERS_LEFT = list(wave.get("monsters", []))
+    WAVE_SPAWN_DELAY = wave.get("spawn_delay", normal_cfg.get("spawn_delay", 3.0))
+    WAVE_SPAWN_TIMER = WAVE_SPAWN_DELAY  # spawn first monster immediately
+    WAVE_COUNTDOWN_ACTIVE = False
+    WAVE_ANNOUNCE_TIMER = WAVE_ANNOUNCE_DURATION
+    print(f"[WAVE {wave_index + 1}/{len(waves)}] Starting — {len(WAVE_MONSTERS_LEFT)} monsters")
+
+
 def _update_wave_spawn(dt):
     """Wave-based monster spawning for normal mode."""
     global CURRENT_WAVE, WAVE_MONSTERS_LEFT, WAVE_SPAWN_TIMER, WAVE_SPAWN_DELAY
     global WAVE_CLEAR_TIMER, WAVE_WAITING, ALL_WAVES_DONE
+    global WAVE_COUNTDOWN, WAVE_COUNTDOWN_ACTIVE, WAVE_ANNOUNCE_TIMER
 
     if ALL_WAVES_DONE:
         return
@@ -251,15 +281,23 @@ def _update_wave_spawn(dt):
     if not waves:
         return
 
-    # Start first wave
-    if CURRENT_WAVE == 0 and not WAVE_MONSTERS_LEFT and not WAVE_WAITING and not MONSTERS:
-        wave = waves[0]
-        WAVE_MONSTERS_LEFT = list(wave.get("monsters", []))
-        WAVE_SPAWN_DELAY = wave.get("spawn_delay", normal_cfg.get("spawn_delay", 3.0))
-        WAVE_SPAWN_TIMER = WAVE_SPAWN_DELAY  # spawn first monster immediately
-        print(f"[WAVE 1/{len(waves)}] Starting — {len(WAVE_MONSTERS_LEFT)} monsters")
+    # Announce timer (ticks down after countdown ends)
+    if WAVE_ANNOUNCE_TIMER > 0:
+        WAVE_ANNOUNCE_TIMER -= dt
 
-    # Waiting between waves
+    # Start first wave countdown
+    if CURRENT_WAVE == 0 and not WAVE_MONSTERS_LEFT and not WAVE_WAITING \
+            and not WAVE_COUNTDOWN_ACTIVE and not MONSTERS:
+        _start_wave_countdown(0)
+
+    # Countdown active
+    if WAVE_COUNTDOWN_ACTIVE:
+        WAVE_COUNTDOWN -= dt
+        if WAVE_COUNTDOWN <= 0:
+            _begin_wave_spawning(CURRENT_WAVE)
+        return
+
+    # Waiting between waves (all monsters dead → start countdown for next)
     if WAVE_WAITING:
         alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
         if len(alive) == 0:
@@ -273,11 +311,7 @@ def _update_wave_spawn(dt):
                     ALL_WAVES_DONE = True
                     print("[WAVES] All waves complete!")
                     return
-                wave = waves[CURRENT_WAVE]
-                WAVE_MONSTERS_LEFT = list(wave.get("monsters", []))
-                WAVE_SPAWN_DELAY = wave.get("spawn_delay", normal_cfg.get("spawn_delay", 3.0))
-                WAVE_SPAWN_TIMER = WAVE_SPAWN_DELAY
-                print(f"[WAVE {CURRENT_WAVE + 1}/{len(waves)}] Starting — {len(WAVE_MONSTERS_LEFT)} monsters")
+                _start_wave_countdown(CURRENT_WAVE)
         return
 
     # Spawn monsters from queue
@@ -492,6 +526,65 @@ def draw_all_collision_boxes(screen: pygame.Surface, decorations: list):
             screen.blit(text_surf, (draw_x + 2, label_y + 1))
 
 
+def _draw_wave_banner(screen):
+    """Draw wave countdown, start announcement, and persistent wave indicator."""
+    normal_cfg = LEVEL_CONFIG.get("normal_mode", {})
+    total_waves = len(normal_cfg.get("waves", []))
+    sw = screen.get_width()
+    cx = sw // 2
+    cy = screen.get_height() // 2
+
+    if WAVE_COUNTDOWN_ACTIVE:
+        # Full-width banner: "Wave X / N" + countdown number
+        wave_font = pygame.font.Font(None, 52)
+        count_font = pygame.font.Font(None, 80)
+
+        wave_text = wave_font.render(f"Wave {CURRENT_WAVE + 1} / {total_waves}", True, (255, 60, 60))
+        secs = max(1, int(WAVE_COUNTDOWN) + 1)
+        count_text = count_font.render(str(secs), True, (255, 0, 0))
+
+        banner_h = wave_text.get_height() + count_text.get_height() + 24
+        banner_y = cy - banner_h - 20
+
+        bg = pygame.Surface((sw, banner_h))
+        bg.fill((0, 0, 0))
+        bg.set_alpha(160)
+        screen.blit(bg, (0, banner_y))
+
+        wr = wave_text.get_rect(centerx=cx, top=banner_y + 8)
+        cr = count_text.get_rect(centerx=cx, top=wr.bottom + 4)
+        screen.blit(wave_text, wr)
+        screen.blit(count_text, cr)
+
+    elif WAVE_ANNOUNCE_TIMER > 0:
+        # Full-width banner: "Wave X Start!"
+        wave_font = pygame.font.Font(None, 56)
+        wave_text = wave_font.render(f"Wave {CURRENT_WAVE + 1} Start!", True, (255, 0, 0))
+
+        banner_h = wave_text.get_height() + 16
+        banner_y = cy - banner_h - 20
+
+        alpha = min(160, int(160 * (WAVE_ANNOUNCE_TIMER / WAVE_ANNOUNCE_DURATION)))
+        bg = pygame.Surface((sw, banner_h))
+        bg.fill((0, 0, 0))
+        bg.set_alpha(alpha)
+        screen.blit(bg, (0, banner_y))
+
+        wave_text.set_alpha(min(255, int(255 * (WAVE_ANNOUNCE_TIMER / WAVE_ANNOUNCE_DURATION))))
+        wr = wave_text.get_rect(centerx=cx, centery=banner_y + banner_h // 2)
+        screen.blit(wave_text, wr)
+
+    # Persistent wave indicator — top-right corner
+    if not ALL_WAVES_DONE:
+        ind_font = pygame.font.Font(None, 24)
+        ind_text = ind_font.render(f"Wave {CURRENT_WAVE + 1}/{total_waves}", True, (255, 200, 200))
+        ind_bg = pygame.Surface((ind_text.get_width() + 10, ind_text.get_height() + 6))
+        ind_bg.fill((0, 0, 0))
+        ind_bg.set_alpha(140)
+        screen.blit(ind_bg, (sw - ind_bg.get_width() - 5, 5))
+        screen.blit(ind_text, (sw - ind_text.get_width() - 10, 8))
+
+
 def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: ResourceManager = None, decorations: list = None):
     """
     Render order: background -> tiles -> decorations -> entities -> collision debug -> HUD.
@@ -608,6 +701,10 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
         bg.set_alpha(160)
         screen.blit(bg, (5, screen.get_height() - 28))
         screen.blit(spell_text, (10, screen.get_height() - 26))
+
+    # Wave countdown / announcement banner
+    if not SPELL_TEST_MODE and not GAME_OVER:
+        _draw_wave_banner(screen)
 
     # Game Over overlay
     if GAME_OVER:
