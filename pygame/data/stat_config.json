@@ -62,6 +62,213 @@
         "fill_padding_x": 0,
         "fill_padding_y": -10
       }
+    },
+    "skeleton": {
+      "max_health": 20,
+      "attack_damage": 8,
+      "move_speed": 75.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 0.8,
+      "frame_duration": 0.13,
+      "experience_reward": 40,
+      "collision": {
+        "width": 40,
+        "height": 50,
+        "offset_x": 125,
+        "offset_y": 150
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "armored_orc": {
+      "max_health": 60,
+      "attack_damage": 15,
+      "move_speed": 45.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.2,
+      "frame_duration": 0.13,
+      "experience_reward": 100,
+      "collision": {
+        "width": 50,
+        "height": 50,
+        "offset_x": 120,
+        "offset_y": 130
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "armored_skeleton": {
+      "max_health": 40,
+      "attack_damage": 12,
+      "move_speed": 55.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.0,
+      "frame_duration": 0.13,
+      "experience_reward": 70,
+      "collision": {
+        "width": 45,
+        "height": 50,
+        "offset_x": 120,
+        "offset_y": 130
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "elite_orc": {
+      "max_health": 80,
+      "attack_damage": 20,
+      "move_speed": 50.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.3,
+      "frame_duration": 0.13,
+      "experience_reward": 150,
+      "collision": {
+        "width": 50,
+        "height": 50,
+        "offset_x": 135,
+        "offset_y": 110
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "greatsword_skeleton": {
+      "max_health": 35,
+      "attack_damage": 25,
+      "move_speed": 40.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.5,
+      "frame_duration": 0.13,
+      "experience_reward": 90,
+      "collision": {
+        "width": 45,
+        "height": 50,
+        "offset_x": 150,
+        "offset_y": 130
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "orc_rider": {
+      "max_health": 70,
+      "attack_damage": 18,
+      "move_speed": 80.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.0,
+      "frame_duration": 0.12,
+      "experience_reward": 130,
+      "collision": {
+        "width": 55,
+        "height": 55,
+        "offset_x": 130,
+        "offset_y": 120
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "slime": {
+      "max_health": 15,
+      "attack_damage": 5,
+      "move_speed": 35.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 0.6,
+      "frame_duration": 0.15,
+      "experience_reward": 25,
+      "collision": {
+        "width": 50,
+        "height": 35,
+        "offset_x": 150,
+        "offset_y": 145
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "werebear": {
+      "max_health": 100,
+      "attack_damage": 25,
+      "move_speed": 40.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 1.5,
+      "frame_duration": 0.14,
+      "experience_reward": 200,
+      "collision": {
+        "width": 60,
+        "height": 55,
+        "offset_x": 160,
+        "offset_y": 125
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
+    },
+    "werewolf": {
+      "max_health": 50,
+      "attack_damage": 15,
+      "move_speed": 90.0,
+      "aggro_range": 1500,
+      "attack_cooldown": 0.7,
+      "frame_duration": 0.12,
+      "experience_reward": 120,
+      "collision": {
+        "width": 50,
+        "height": 50,
+        "offset_x": 165,
+        "offset_y": 130
+      },
+      "hp_bar": {
+        "width": 50,
+        "height": 30,
+        "offset_x": 10,
+        "offset_y": -10,
+        "fill_padding_x": 0,
+        "fill_padding_y": -10
+      }
     }
   },
 
@@ -77,21 +284,6 @@
       "x": 156,
       "y": 228
     }
-  },
-
-  "portal": {
-    "frame_duration": 0.15,
-    "spawn_offset_x": 160,
-    "spawn_offset_y": 180,
-    "spawn": {
-      "x": 1000,
-      "y": 190
-    }
-  },
-
-  "spawner": {
-    "delay": 3.0,
-    "max_monsters": 1
   },
 
   "spells": {
@@ -242,7 +434,8 @@
       "freeze_duration": 0,
       "knockback_force": 0,
       "knockup_duration": 0,
-      "special": "double_hit"
+      "special": "double_hit",
+      "double_hit_delay": 1.0
     },
     "crystal": {
       "index": 8,
@@ -265,7 +458,10 @@
       "freeze_duration": 0,
       "knockback_force": 0,
       "knockup_duration": 0,
-      "special": "kill_bonus"
+      "special": "kill_bonus",
+      "kill_bonus_delay": 1,
+      "bonus_anim_offset_x": 0,
+      "bonus_anim_offset_y": 0
     },
     "phoenix": {
       "index": 9,

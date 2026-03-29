@@ -92,7 +92,7 @@
         "scale": 2.0
       }
     },
-    "monster": {
+    "orc": {
       "idle": {
         "sprite_sheet": "../ingame_assets/character/orc/Orc.png",
         "grid_rows": 6,

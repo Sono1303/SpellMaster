@@ -44,6 +44,8 @@ class SpellEffect:
         self.special = config.get("special")
         self.second_hit_timer = -1  # double_hit
         self.explosion_timer = -1   # delayed_explosion
+        self.kill_bonus_timer = -1  # kill_bonus (crystal)
+        self.kill_bonus_data = None
         self.marked_x = 0.0
         self.marked_y = 0.0
 
@@ -156,7 +158,7 @@ class SpellEffect:
         elif self.special == "double_hit":
             self.marked_x = self.x
             self.marked_y = self.y
-            self.second_hit_timer = 0.5
+            self.second_hit_timer = cfg.get("double_hit_delay", 1.0)
         elif self.special == "kill_bonus":
             new_spells.extend(self._handle_kill_bonus(all_monsters))
 
@@ -191,21 +193,38 @@ class SpellEffect:
         return new_spells
 
     def _handle_kill_bonus(self, all_monsters: list) -> list:
-        """Crystal: if killed mobs, redistribute their damage equally to all
-        remaining alive mobs with crystal effects + crystal_mini animation."""
-        new_spells = []
+        """Crystal: if killed mobs, store bonus data for delayed redistribution."""
         killed_count = sum(1 for m in self.hit_monsters if not m.is_alive())
         if killed_count == 0:
-            return new_spells
+            return []
 
         total_damage = self.config["damage"] * killed_count
+        self.kill_bonus_data = {
+            "total_damage": total_damage,
+            "origin_x": self.x,
+            "origin_y": self.y,
+        }
+        self.kill_bonus_timer = self.config.get("kill_bonus_delay", 0.5)
+        return []
+
+    def _apply_kill_bonus(self, all_monsters: list) -> list:
+        """Crystal: apply delayed bonus damage + crystal_mini animations."""
+        new_spells = []
+        data = self.kill_bonus_data
+        if not data:
+            return new_spells
+
         remaining = [m for m in all_monsters
                      if m.is_alive() and not getattr(m, '_dying', False)]
         if not remaining:
             return new_spells
 
-        damage_per_mob = max(1, total_damage // len(remaining))
+        damage_per_mob = max(1, data["total_damage"] // len(remaining))
         cfg = self.config
+        ox = data["origin_x"]
+        oy = data["origin_y"]
+        bonus_ax = cfg.get("bonus_anim_offset_x", 0)
+        bonus_ay = cfg.get("bonus_anim_offset_y", 0)
 
         for m in remaining:
             m.take_spell_damage(damage_per_mob)
@@ -221,16 +240,16 @@ class SpellEffect:
             elif cfg.get("slow_duration", 0) > 0 and cfg.get("slow_value", 0) > 0:
                 m.apply_slow(cfg["slow_value"], cfg["slow_duration"])
             if cfg.get("knockback_force", 0) > 0:
-                dx = (getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2) - self.x
-                dy = (getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2) - self.y
+                dx = (getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2) - ox
+                dy = (getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2) - oy
                 dist = max((dx**2 + dy**2) ** 0.5, 1)
                 m.apply_knockback(cfg["knockback_force"], dx / dist, dy / dist)
             if cfg.get("knockup_duration", 0) > 0:
                 m.apply_knockup(cfg["knockup_duration"])
 
             # Spawn crystal_mini animation at this monster
-            mx = getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2
-            my = getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2
+            mx = getattr(m, 'col_x', m.x) + getattr(m, 'collision_width', 0) / 2 + bonus_ax
+            my = getattr(m, 'col_y', m.y) + getattr(m, 'collision_height', 0) / 2 + bonus_ay
             mini_cfg = dict(cfg)
             mini_cfg["damage"] = 0
             mini_cfg["special"] = None
@@ -241,6 +260,7 @@ class SpellEffect:
                 "target": m
             })
 
+        self.kill_bonus_data = None
         return new_spells
 
 
@@ -350,6 +370,24 @@ class SpellManager:
                     if effect:
                         pending.append(effect)
 
+            # Kill bonus timer (crystal delayed redistribution)
+            if spell.kill_bonus_timer > 0:
+                spell.kill_bonus_timer -= dt
+                if spell.kill_bonus_timer <= 0:
+                    bonus_spells = spell._apply_kill_bonus(all_monsters)
+                    if bonus_spells and self.sfx_manager:
+                        self.sfx_manager.play("action", "monster_hit")
+                    for ns in bonus_spells:
+                        ns_cfg = ns.get("config", self.spell_configs.get(ns["spell_name"]))
+                        if not ns_cfg:
+                            continue
+                        effect = self._create_spell_effect(
+                            ns["spell_name"], ns_cfg,
+                            ns["x"], ns["y"], ns.get("target")
+                        )
+                        if effect:
+                            pending.append(effect)
+
             # Delayed explosion timer — re-enable damage when timer expires
             if spell.explosion_timer > 0:
                 spell.explosion_timer -= dt
@@ -361,7 +399,7 @@ class SpellManager:
         # Remove finished spells (no pending timers)
         self.active_spells = [
             s for s in self.active_spells
-            if not s.finished or s.second_hit_timer > 0 or s.explosion_timer > 0
+            if not s.finished or s.second_hit_timer > 0 or s.explosion_timer > 0 or s.kill_bonus_timer > 0
         ]
 
     def update_curse_spread(self, all_monsters: list):
