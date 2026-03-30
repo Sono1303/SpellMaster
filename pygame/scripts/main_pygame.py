@@ -380,6 +380,10 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
     for portal in PORTALS:
         portal.update(dt)
 
+    # Update statue (smooth HP bar animation)
+    if STATUE:
+        STATUE.update(dt)
+
     if GAME_OVER:
         return
 
@@ -444,45 +448,33 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
             continue
 
         monster._blocked_by_player = False
-        target = None
-        dist_statue = float('inf')
-        dist_player = float('inf')
 
+        # === MODIFIED AGGRO LOGIC ===
+        # No dynamic aggro: mobs always move towards statue, never chase player
+        monster.is_aggro = False
         if STATUE and STATUE.is_alive():
-            dist_statue = monster.distance_to(STATUE)
-
-        if PLAYER and PLAYER.is_alive():
-            dist_player = monster.distance_to(PLAYER)
-
-        # Player blocks path if closer than statue and within aggro range
-        if dist_player < dist_statue and dist_player < monster.aggro_range:
-            target = PLAYER
-        elif dist_statue < monster.aggro_range:
-            target = STATUE
-
-        if target:
-            monster.is_aggro = True
-            monster.move_towards(target)
+            monster.move_towards(STATUE)
         else:
-            monster.is_aggro = False
             monster.vx = 0
             monster.vy = 0
             if monster._hurt_timer <= 0:
                 monster.set_state(EntityState.IDLE)
 
         old_x = monster.x
+        old_y = monster.y
         monster.move(dt, tile_map=tile_map, decorations=decorations, player=PLAYER)
 
-        # If monster tried to move but was blocked → attack
-        was_blocked = (monster.vx != 0 and monster.x == old_x)
-        if was_blocked and target:
+        # Attack logic: priority to statue (proximity), then player (collision block)
+        if STATUE and STATUE.is_alive() and monster.is_touching(STATUE, margin=50):
+            # Monster reached/touching statue → attack it
             monster.vx = 0
             monster.vy = 0
-            # Blocked by player → attack player instead of statue
-            if monster._blocked_by_player and PLAYER and PLAYER.is_alive():
-                monster.attack(PLAYER)
-            else:
-                monster.attack(target)
+            monster.attack(STATUE)
+        elif (monster.vx != 0 or monster.vy != 0) and (monster.x == old_x or monster.y == old_y) and monster._blocked_by_player and PLAYER and PLAYER.is_alive():
+            # Monster tried to move but was blocked by player → attack player
+            monster.vx = 0
+            monster.vy = 0
+            monster.attack(PLAYER)
 
         monster.update(dt)
 

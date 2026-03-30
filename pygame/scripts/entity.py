@@ -715,6 +715,10 @@ class Monster(Entity):
             "knockback": {"active": False, "vx": 0, "vy": 0, "timer": 0},
             "knockup": {"active": False, "duration": 0, "timer": 0, "offset_y": 0},
         }
+        
+        # Track target and initial distance for diagonal movement after 80%
+        self._current_target = None
+        self._initial_distance = 0.0
 
     @property
     def col_x(self) -> float:
@@ -988,26 +992,64 @@ class Monster(Entity):
             self.vy = 0
 
     def move_towards(self, target: Entity, speed: float = None):
-        """Move straight (horizontal only) towards target."""
+        """
+        Move towards target with diagonal movement in final 20% of journey.
+        - First 80% of distance: horizontal movement only
+        - Last 20% of distance: diagonal movement towards target
+        """
         if self._hurt_timer > 0 or self._dying:
             return
         if self.attack_timer > 0:
             self.vx = 0
             self.vy = 0
             return
+        
         speed = speed or self.move_speed
+        
+        # Get target and monster center positions
         tx = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
+        ty = getattr(target, 'col_y', target.y) + getattr(target, 'collision_height', 0) / 2
         mx = self.col_x + self.collision_width / 2
+        my = self.col_y + self.collision_height / 2
+        
         dx = tx - mx
-        if dx < 0:
-            self.vx = -speed
-        elif dx > 0:
-            self.vx = speed
+        dy = ty - my
+        
+        # If target changed, record initial distance
+        if self._current_target != target:
+            self._current_target = target
+            self._initial_distance = (dx**2 + dy**2) ** 0.5
+        
+        # Calculate current distance
+        current_distance = (dx**2 + dy**2) ** 0.5
+        
+        # Determine movement mode based on progress (80/20 split)
+        threshold_distance = self._initial_distance * 0.2  # 20% remaining = 80% covered
+        
+        if current_distance <= threshold_distance or threshold_distance == 0:
+            # Last 20% of journey - move diagonally
+            if current_distance > 0:
+                # Normalize and apply speed
+                vx_norm = dx / current_distance
+                vy_norm = dy / current_distance
+                self.vx = vx_norm * speed
+                self.vy = vy_norm * speed
+            else:
+                self.vx = 0
+                self.vy = 0
         else:
-            self.vx = 0
-        self.vy = 0
-        if self.vx != 0:
+            # First 80% of journey - move horizontally only (old behavior)
+            if dx < 0:
+                self.vx = -speed
+            elif dx > 0:
+                self.vx = speed
+            else:
+                self.vx = 0
+            self.vy = 0
+        
+        if self.vx != 0 or self.vy != 0:
             self.set_state(EntityState.WALK)
+
 
     def distance_to(self, target: Entity) -> float:
         """Distance between collision box centers."""
