@@ -62,7 +62,7 @@
       "collision": {
         "width": 45,
         "height": 45,
-        "offset_x": 120,
+        "offset_x": 125,
         "offset_y": 130
       },
       "hp_bar": {
@@ -86,12 +86,12 @@
         "width": 40,
         "height": 50,
         "offset_x": 125,
-        "offset_y": 150
+        "offset_y": 125
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
+        "offset_x": 3,
         "offset_y": -10,
         "fill_padding_x": 0,
         "fill_padding_y": -10
@@ -109,7 +109,7 @@
         "width": 50,
         "height": 50,
         "offset_x": 120,
-        "offset_y": 130
+        "offset_y": 121
       },
       "hp_bar": {
         "width": 50,
@@ -132,12 +132,12 @@
         "width": 45,
         "height": 50,
         "offset_x": 120,
-        "offset_y": 130
+        "offset_y": 121
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
+        "offset_x": 5,
         "offset_y": -10,
         "fill_padding_x": 0,
         "fill_padding_y": -10
@@ -153,9 +153,9 @@
       "experience_reward": 150,
       "collision": {
         "width": 50,
-        "height": 50,
-        "offset_x": 135,
-        "offset_y": 110
+        "height": 60,
+        "offset_x": 120,
+        "offset_y": 114
       },
       "hp_bar": {
         "width": 50,
@@ -177,13 +177,13 @@
       "collision": {
         "width": 45,
         "height": 50,
-        "offset_x": 150,
-        "offset_y": 130
+        "offset_x": 120,
+        "offset_y": 121
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
+        "offset_x": 5,
         "offset_y": -10,
         "fill_padding_x": 0,
         "fill_padding_y": -10
@@ -198,10 +198,10 @@
       "frame_duration": 0.12,
       "experience_reward": 130,
       "collision": {
-        "width": 55,
-        "height": 55,
-        "offset_x": 130,
-        "offset_y": 120
+        "width": 60,
+        "height": 80,
+        "offset_x": 120,
+        "offset_y": 92
       },
       "hp_bar": {
         "width": 50,
@@ -221,16 +221,16 @@
       "frame_duration": 0.15,
       "experience_reward": 25,
       "collision": {
-        "width": 50,
-        "height": 35,
-        "offset_x": 150,
-        "offset_y": 145
+        "width": 70,
+        "height": 40,
+        "offset_x": 120,
+        "offset_y": 135
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
-        "offset_y": -10,
+        "offset_x": 0,
+        "offset_y": -15,
         "fill_padding_x": 0,
         "fill_padding_y": -10
       }
@@ -246,13 +246,13 @@
       "collision": {
         "width": 60,
         "height": 55,
-        "offset_x": 160,
-        "offset_y": 125
+        "offset_x": 115,
+        "offset_y": 121
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
+        "offset_x": 5,
         "offset_y": -10,
         "fill_padding_x": 0,
         "fill_padding_y": -10
@@ -269,13 +269,13 @@
       "collision": {
         "width": 50,
         "height": 50,
-        "offset_x": 165,
-        "offset_y": 130
+        "offset_x": 120,
+        "offset_y": 121
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
+        "offset_x": 0,
         "offset_y": -10,
         "fill_padding_x": 0,
         "fill_padding_y": -10
