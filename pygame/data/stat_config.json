@@ -68,7 +68,7 @@
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
+        "offset_x": 6,
         "offset_y": -10,
         "fill_padding_x": 0,
         "fill_padding_y": -10
@@ -199,15 +199,15 @@
       "experience_reward": 130,
       "collision": {
         "width": 60,
-        "height": 80,
+        "height": 70,
         "offset_x": 120,
-        "offset_y": 92
+        "offset_y": 110
       },
       "hp_bar": {
         "width": 50,
         "height": 30,
-        "offset_x": 10,
-        "offset_y": -10,
+        "offset_x": 5,
+        "offset_y": -20,
         "fill_padding_x": 0,
         "fill_padding_y": -10
       }

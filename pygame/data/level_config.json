@@ -21,17 +21,7 @@
   ],
 
   "spell_test_mode": {
-    "monsters": [
-      "werewolf",
-      "orc",
-      "skeleton",
-      "armored_orc",
-      "armored_skeleton",
-      "orc_rider",
-      "greatsword_skeleton",
-      "elite_orc",
-      "werebear"
-    ],
+    "monsters": ["orc_rider"],
     "spacing": 60
   },
 

@@ -43,7 +43,7 @@ FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
 DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
-SPELL_TEST_MODE = False            # Spawn monsters in center for testing
+SPELL_TEST_MODE = True            # Spawn monsters in center for testing
 
 # Global state
 MOUSE_POS = (0, 0)
