@@ -21,7 +21,7 @@
   ],
 
   "spell_test_mode": {
-    "monsters": ["orc", "orc", "orc", "orc", "orc"],
+    "monsters": ["orc_rider"],
     "spacing": 60
   },
 
