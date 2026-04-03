@@ -32,79 +32,79 @@
     "waves": [
       {
         "monsters": [
-          {"type": "slime", "portal": 0},
-          {"type": "slime", "portal": 1},
-          {"type": "slime", "portal": 2},
-          {"type": "orc", "portal": 0},
-          {"type": "orc", "portal": 1}
+          { "type": "slime", "portal": 0 },
+          { "type": "slime", "portal": 1 },
+          { "type": "slime", "portal": 2 },
+          { "type": "orc", "portal": 0 },
+          { "type": "orc", "portal": 1 }
         ],
         "spawn_delay": 3.0
       },
       {
         "monsters": [
-          {"type": "orc", "portal": 0},
-          {"type": "orc", "portal": 2},
-          {"type": "skeleton", "portal": 1},
-          {"type": "skeleton", "portal": 0},
-          {"type": "slime", "portal": 1},
-          {"type": "slime", "portal": 2}
+          { "type": "orc", "portal": 0 },
+          { "type": "orc", "portal": 2 },
+          { "type": "skeleton", "portal": 1 },
+          { "type": "skeleton", "portal": 0 },
+          { "type": "slime", "portal": 1 },
+          { "type": "slime", "portal": 2 }
         ],
         "spawn_delay": 2.5
       },
       {
         "monsters": [
-          {"type": "armored_orc", "portal": 0},
-          {"type": "orc", "portal": 1},
-          {"type": "orc", "portal": 2},
-          {"type": "skeleton", "portal": 0},
-          {"type": "skeleton", "portal": 1},
-          {"type": "werewolf", "portal": 2}
+          { "type": "armored_orc", "portal": 0 },
+          { "type": "orc", "portal": 1 },
+          { "type": "orc", "portal": 2 },
+          { "type": "skeleton", "portal": 0 },
+          { "type": "skeleton", "portal": 1 },
+          { "type": "werewolf", "portal": 2 }
         ],
         "spawn_delay": 2.5
       },
       {
         "monsters": [
-          {"type": "armored_orc", "portal": 0},
-          {"type": "armored_skeleton", "portal": 1},
-          {"type": "werewolf", "portal": 2},
-          {"type": "werewolf", "portal": 0},
-          {"type": "orc_rider", "portal": 1}
+          { "type": "armored_orc", "portal": 0 },
+          { "type": "armored_skeleton", "portal": 1 },
+          { "type": "werewolf", "portal": 2 },
+          { "type": "werewolf", "portal": 0 },
+          { "type": "orc_rider", "portal": 1 }
         ],
         "spawn_delay": 2.0
       },
       {
         "monsters": [
-          {"type": "elite_orc", "portal": 0},
-          {"type": "armored_orc", "portal": 1},
-          {"type": "armored_skeleton", "portal": 2},
-          {"type": "greatsword_skeleton", "portal": 0},
-          {"type": "orc_rider", "portal": 1},
-          {"type": "werewolf", "portal": 2}
+          { "type": "elite_orc", "portal": 0 },
+          { "type": "armored_orc", "portal": 1 },
+          { "type": "armored_skeleton", "portal": 2 },
+          { "type": "greatsword_skeleton", "portal": 0 },
+          { "type": "orc_rider", "portal": 1 },
+          { "type": "werewolf", "portal": 2 }
         ],
         "spawn_delay": 2.0
       },
       {
         "monsters": [
-          {"type": "elite_orc", "portal": 0},
-          {"type": "elite_orc", "portal": 1},
-          {"type": "werebear", "portal": 2},
-          {"type": "orc_rider", "portal": 0},
-          {"type": "orc_rider", "portal": 1},
-          {"type": "greatsword_skeleton", "portal": 2},
-          {"type": "armored_orc", "portal": 0}
+          { "type": "elite_orc", "portal": 0 },
+          { "type": "elite_orc", "portal": 1 },
+          { "type": "werebear", "portal": 2 },
+          { "type": "orc_rider", "portal": 0 },
+          { "type": "orc_rider", "portal": 1 },
+          { "type": "greatsword_skeleton", "portal": 2 },
+          { "type": "armored_orc", "portal": 0 }
         ],
         "spawn_delay": 1.5
       },
       {
         "monsters": [
-          {"type": "werebear", "portal": 0},
-          {"type": "werebear", "portal": 2},
-          {"type": "elite_orc", "portal": 1},
-          {"type": "elite_orc", "portal": 0},
-          {"type": "orc_rider", "portal": 2},
-          {"type": "orc_rider", "portal": 1},
-          {"type": "greatsword_skeleton", "portal": 0},
-          {"type": "greatsword_skeleton", "portal": 2}
+          { "type": "werebear", "portal": 0 },
+          { "type": "werebear", "portal": 2 },
+          { "type": "elite_orc", "portal": 1 },
+          { "type": "elite_orc", "portal": 0 },
+          { "type": "orc_rider", "portal": 2 },
+          { "type": "orc_rider", "portal": 1 },
+          { "type": "greatsword_skeleton", "portal": 0 },
+          { "type": "greatsword_skeleton", "portal": 2 }
         ],
         "spawn_delay": 1.5
       }
