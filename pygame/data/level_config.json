@@ -86,9 +86,9 @@
       {
         "monsters": [
           { "type": "elite_orc", "portal": 0 },
-          { "type": "elite_orc", "portal": 1 },
+          { "type": "armored_orc", "portal": 1 },
           { "type": "werebear", "portal": 2 },
-          { "type": "orc_rider", "portal": 0 },
+          { "type": "werewolf", "portal": 0 },
           { "type": "orc_rider", "portal": 1 },
           { "type": "greatsword_skeleton", "portal": 2 },
           { "type": "armored_orc", "portal": 0 }
@@ -98,13 +98,13 @@
       {
         "monsters": [
           { "type": "werebear", "portal": 0 },
-          { "type": "werebear", "portal": 2 },
-          { "type": "elite_orc", "portal": 1 },
+          { "type": "werewolf", "portal": 2 },
+          { "type": "greatsword_skeleton", "portal": 1 },
           { "type": "elite_orc", "portal": 0 },
-          { "type": "orc_rider", "portal": 2 },
+          { "type": "werebear", "portal": 2 },
           { "type": "orc_rider", "portal": 1 },
           { "type": "greatsword_skeleton", "portal": 0 },
-          { "type": "greatsword_skeleton", "portal": 2 }
+          { "type": "elite_orc", "portal": 2 }
         ],
         "spawn_delay": 1.5
       }
