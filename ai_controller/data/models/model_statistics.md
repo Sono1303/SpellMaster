@@ -1,18 +1,18 @@
 # Gesture Spell Model Comparison Report
 
-**Generated:** 2026-03-12 22:08:09
+**Generated:** 2026-03-30 20:58:17
 
 ## Model Performance Summary
 
-**Best Model (Balanced Score):** MLP Neural Network
+**Best Model (Balanced Score):** SVM (RBF)
 
-**Accuracy:** 99.96%
+**Accuracy:** 100.00%
 
-**F1-Score (Weighted):** 0.9996
+**F1-Score (Weighted):** 1.0000
 
-**Inference Time:** 1.163 ms
+**Inference Time:** 0.915 ms
 
-**Balanced Score:** 0.9997
+**Balanced Score:** 1.0000
 
 ### Selection Logic
 
@@ -26,36 +26,38 @@ This weighted approach optimizes for SpellMaster use case where both accuracy an
 
 | Model | Accuracy (%) | F1-Score | Inference Time (ms) |
 |-------|--------------|----------|---------------------|
-| Random Forest | 99.96% | 0.9996 | 26.610 |
-| MLP Neural Network (WINNER) | 99.96% | 0.9996 | 1.163 |
-| SVM (RBF) | 99.93% | 0.9993 | 1.071 |
-| K-Nearest Neighbors | 99.93% | 0.9993 | 12.359 |
+| SVM (RBF) (WINNER) | 100.00% | 1.0000 | 0.915 |
+| Random Forest | 99.98% | 0.9998 | 17.231 |
+| K-Nearest Neighbors | 99.97% | 0.9997 | 2.846 |
 
 ## Rankings
 
-**Highest Accuracy:** Random Forest (99.96%)
+**Highest Accuracy:** SVM (RBF) (100.00%)
 
-**Fastest Inference:** SVM (RBF) (1.071 ms)
+**Fastest Inference:** SVM (RBF) (0.915 ms)
 
 ## Training Data Statistics
 
-**Total Samples:** 22753
+**Total Samples:** 31740
 
-**Training Set:** 18202 samples (79%)
+**Training Set:** 25392 samples (80%)
 
-**Test Set:** 4551 samples (20%)
+**Test Set:** 6348 samples (20%)
 
 **Number of Features:** 84
 
 ### Label Distribution (Training Set)
 
-- Ice: 3040 samples (16.7%)
-- Fire: 2879 samples (15.8%)
-- Dark: 2720 samples (14.9%)
-- Lightning: 2400 samples (13.2%)
-- Air: 2400 samples (13.2%)
-- Earth: 2400 samples (13.2%)
-- Water: 2363 samples (13.0%)
+- Ice: 3040 samples (12.0%)
+- Fire: 2879 samples (11.3%)
+- Dark: 2720 samples (10.7%)
+- Earth: 2400 samples (9.5%)
+- Crystal: 2400 samples (9.5%)
+- Phoenix: 2400 samples (9.5%)
+- Lightning: 2400 samples (9.5%)
+- Air: 2400 samples (9.5%)
+- Light: 2390 samples (9.4%)
+- Water: 2363 samples (9.3%)
 
 ## Detailed Classification Report (Best Model)
 
@@ -63,16 +65,19 @@ This weighted approach optimizes for SpellMaster use case where both accuracy an
               precision    recall  f1-score   support
 
          Air       1.00      1.00      1.00       600
+     Crystal       1.00      1.00      1.00       600
         Dark       1.00      1.00      1.00       680
        Earth       1.00      1.00      1.00       600
         Fire       1.00      1.00      1.00       720
          Ice       1.00      1.00      1.00       760
+       Light       1.00      1.00      1.00       597
    Lightning       1.00      1.00      1.00       600
+     Phoenix       1.00      1.00      1.00       600
        Water       1.00      1.00      1.00       591
 
-    accuracy                           1.00      4551
-   macro avg       1.00      1.00      1.00      4551
-weighted avg       1.00      1.00      1.00      4551
+    accuracy                           1.00      6348
+   macro avg       1.00      1.00      1.00      6348
+weighted avg       1.00      1.00      1.00      6348
 ```
 
 ## Model Descriptions
