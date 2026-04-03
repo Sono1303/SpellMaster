@@ -340,8 +340,6 @@ class SpellManager:
             if not spell.has_applied_damage:
                 old_hit_count = len(spell.hit_monsters)
                 new_spells = spell.apply_effects(all_monsters)
-                if len(spell.hit_monsters) > old_hit_count and self.sfx_manager:
-                    self.sfx_manager.play("action", "monster_hit")
                 for ns in new_spells:
                     ns_cfg = ns.get("config", self.spell_configs.get(ns["spell_name"]))
                     if not ns_cfg:
@@ -382,8 +380,6 @@ class SpellManager:
 
                     elif stype == "kill_bonus":
                         bonus_spells = spell._apply_kill_bonus(all_monsters)
-                        if bonus_spells and self.sfx_manager:
-                            self.sfx_manager.play("action", "monster_hit")
                         for ns in bonus_spells:
                             ns_cfg = ns.get("config", self.spell_configs.get(ns["spell_name"]))
                             if not ns_cfg:

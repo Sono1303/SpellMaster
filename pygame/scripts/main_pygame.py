@@ -43,7 +43,7 @@ FPS = 60
 DEBUG_MODE = False                 # Coordinate overlay on screen
 DEBUG_COLLISION = False           # Verbose collision logging in console
 DRAW_ALL_COLLISION_BOXES = False   # Draw ALL collision boxes for manual editing
-SPELL_TEST_MODE = True            # Spawn monsters in center for testing
+SPELL_TEST_MODE = False            # Spawn monsters in center for testing
 
 # Global state
 MOUSE_POS = (0, 0)
@@ -237,6 +237,7 @@ def _spawn_monster_at_portal(mtype, portal_index=0):
     spawn_x = portal.x + portal.spawn_offset_x
     spawn_y = portal.y + portal.spawn_offset_y
     m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type=mtype)
+    m.sfx_manager = SFX_MANAGER
     m.x = spawn_x - m.collision_offset_x - m.collision_width / 2
     m.y = spawn_y - m.collision_offset_y - m.collision_height / 2
     MONSTERS.append(m)
@@ -416,6 +417,7 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
             offset = (slot - test_count // 2) * test_spacing
             mtype = test_types[slot]
             new_m = Monster(x=0, y=0, animation_cache=ANIMATION_CACHE, monster_type=mtype)
+            new_m.sfx_manager = SFX_MANAGER
             new_m.x = center_x + offset - new_m.collision_offset_x - new_m.collision_width / 2
             new_m.y = center_y - new_m.collision_offset_y - new_m.collision_height / 2
             MONSTERS[slot] = new_m

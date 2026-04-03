@@ -719,6 +719,12 @@ class Monster(Entity):
         # Track target and initial distance for diagonal movement after 80%
         self._current_target = None
         self._initial_distance = 0.0
+        
+        # SFX manager for playing attack sound
+        self.sfx_manager = None
+        
+        # SFX manager for playing attack sound
+        self.sfx_manager = None
 
     @property
     def col_x(self) -> float:
@@ -990,6 +996,9 @@ class Monster(Entity):
             self.attack_timer = self.attack_cooldown
             self.vx = 0
             self.vy = 0
+            # Play monster attack sound effect
+            if self.sfx_manager:
+                self.sfx_manager.play("action", "monster_hit")
 
     def move_towards(self, target: Entity, speed: float = None):
         """
