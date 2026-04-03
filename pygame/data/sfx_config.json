@@ -6,7 +6,7 @@
       "speed": 1.0,
       "start": 0.0,
       "end": 0.0,
-      "loop": false
+      "loop": true
     },
     "monster_hit": {
       "file": "../ingame_assets/sfx/action/monster_hit_sfx.mp3",
@@ -21,7 +21,7 @@
       "volume": 1.0,
       "speed": 1.0,
       "start": 0.0,
-      "end": 1.7,
+      "end": 1.8,
       "loop": true
     }
   },
@@ -31,7 +31,7 @@
       "volume": 1.0,
       "speed": 1.0,
       "start": 0.0,
-      "end": 0.0,
+      "end": 1.0,
       "loop": false
     },
     "water": {
@@ -39,7 +39,7 @@
       "volume": 1.0,
       "speed": 1.0,
       "start": 0.0,
-      "end": 0.0,
+      "end": 1.3,
       "loop": false
     },
     "earth": {
@@ -55,7 +55,7 @@
       "volume": 1.0,
       "speed": 1.0,
       "start": 0.0,
-      "end": 0.0,
+      "end": 1.3,
       "loop": false
     },
     "lightning": {
@@ -71,15 +71,15 @@
       "volume": 1.0,
       "speed": 1.0,
       "start": 0.0,
-      "end": 0.0,
+      "end": 1.4,
       "loop": false
     },
     "dark": {
       "file": "../ingame_assets/sfx/spell/dark_sfx.mp3",
       "volume": 1.0,
       "speed": 1.0,
-      "start": 0.0,
-      "end": 0.0,
+      "start": 0.5,
+      "end": 2.0,
       "loop": false
     },
     "light": {
@@ -103,7 +103,7 @@
       "volume": 1.0,
       "speed": 1.0,
       "start": 0.0,
-      "end": 0.0,
+      "end": 2.0,
       "loop": false
     }
   }
