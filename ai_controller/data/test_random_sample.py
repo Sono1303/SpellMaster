@@ -5,7 +5,8 @@ from pathlib import Path
 import random
 
 # Load data
-data_file = Path(__file__).parent / "final_train.csv"
+# data_file = Path(__file__).parent / "final_train.csv"
+data_file = "ai_controller/data/compare/normalize_data/Crystal/normalized_1.csv"
 
 print("[+] Loading data...")
 df = pd.read_csv(data_file)
@@ -63,8 +64,8 @@ skeleton_connections = [
 # Create figure with single large subplot
 fig, ax = plt.subplots(1, 1, figsize=(12, 12))
 
-ax.set_xlim(-4, 4)
-ax.set_ylim(-3, 3)
+ax.set_xlim(-1, 3)
+ax.set_ylim(-1, 2)
 ax.set_aspect('equal')
 ax.invert_yaxis()
 ax.grid(True, alpha=0.4, linestyle='--', linewidth=0.5)
