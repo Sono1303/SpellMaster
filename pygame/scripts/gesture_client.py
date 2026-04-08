@@ -172,23 +172,34 @@ class GestureClient:
         """Handle spell detection message from server."""
         spell_name = data.get('spell')
         confidence = data.get('confidence', 0)
+        state = data.get('state', 'cast')  # ✅ NEW: spell state (focus, holding, cast)
         
-        # Log detection
-        print(f"\n[RECEIVED] Spell: {spell_name} ({confidence:.1f}%) from {addr[0]}:{addr[1]}")
+        # Log detection based on state
+        if state == 'focus':
+            print(f"\n[FOCUS] {spell_name} ({confidence:.1f}%) - Detected!")
+        elif state == 'holding':
+            # Compact log for real-time updates
+            progress = int(confidence * 100)
+            print(f"[HOLDING] {spell_name}: {progress}%", end='\r')
+        elif state == 'cast':
+            print(f"\n[CAST] {spell_name} ({confidence:.1f}%) - Spell trigger!")
         
         self.stats['spells_received'] += 1
         self.stats['last_spell'] = spell_name
         self.stats['last_confidence'] = confidence
         
-        # Queue spell for game processing
+        # Queue spell for game processing (always queue, game decides what to do based on state)
         try:
             self.spell_queue.put_nowait({
                 'spell': spell_name,
                 'confidence': confidence,
+                'state': state,  # ✅ NEW: Include state for game to handle
                 'timestamp': data.get('timestamp', time.time())
             })
             self.stats['spells_queued'] += 1
-            print(f"[QUEUED] {spell_name} added to speech queue")
+            
+            if state == 'cast':
+                print(f"[QUEUED] {spell_name} added to spell queue")
         
         except queue.Full:
             print(f"[X] Spell queue full - dropping: {spell_name}")

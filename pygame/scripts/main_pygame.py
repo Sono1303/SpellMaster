@@ -57,6 +57,19 @@ MONSTERS = []
 STATUE = None
 PORTALS = []
 GAME_OVER = False
+GAME_STARTED = False           # Track if game has begun
+WAITING_FOR_START_GESTURE = False  # Waiting for gesture to start game
+WAITING_FOR_RESTART_GESTURE = False # Waiting for gesture to restart after game over
+GESTURE_START_HOLD_TIME = 0.0   # Track hold duration for start gesture
+START_GESTURE_FRAME_COUNT = 0   # Count frames for start/restart gesture
+CURRENT_HELD_GESTURE = None     # Store current held gesture name for start/restart
+CURRENT_HELD_CONFIDENCE = 0.0   # Store confidence of current held gesture
+
+# Spell casting gesture tracking
+CHAINING_GESTURE = None         # Current gesture being held (for spell casting)
+CHAINING_FRAME_COUNT = 0        # Number of frames holding same gesture
+CHAINING_CONFIDENCE = 0.0       # Confidence level of chaining gesture
+
 SPELL_MANAGER = None
 SFX_MANAGER = None
 PLAYER_UI = None
@@ -355,62 +368,211 @@ def _update_wave_spawn(dt):
             WAVE_CLEAR_TIMER = 0.0
 
 
+def _update_start_gesture_hold(dt: float):
+    """
+    Track gesture holding for start/restart sequence (frame-based for speed).
+    After ~60 frames of continuous gesture, will trigger start/restart.
+    """
+    global GESTURE_START_HOLD_TIME, START_GESTURE_FRAME_COUNT, CURRENT_HELD_GESTURE, CURRENT_HELD_CONFIDENCE
+    global WAITING_FOR_START_GESTURE, WAITING_FOR_RESTART_GESTURE
+    
+    if GESTURE_CLIENT:
+        spell_event = GESTURE_CLIENT.get_next_spell()
+        if spell_event:
+            gesture_name = spell_event.get('spell')
+            confidence = spell_event.get('confidence', 0)
+            
+            # Store gesture for use in process_gesture_spells()
+            CURRENT_HELD_GESTURE = gesture_name
+            CURRENT_HELD_CONFIDENCE = confidence
+            
+            # Count continuous frames (60 frames ≈ 1.0 second at 60 FPS)
+            START_GESTURE_FRAME_COUNT += 1
+            GESTURE_START_HOLD_TIME = START_GESTURE_FRAME_COUNT / 60.0  # Convert frame count to time
+            
+            # Progress indicator at milestones (20, 40, 60, etc frames)
+            if START_GESTURE_FRAME_COUNT % 15 == 0 and START_GESTURE_FRAME_COUNT <= 60:
+                progress_pct = min(100, int((START_GESTURE_FRAME_COUNT / 60.0) * 100))
+                print(f"[HOLD] {gesture_name}: {GESTURE_START_HOLD_TIME:.1f}s / 1.0s [{progress_pct}%]")
+        else:
+            # Gesture stopped - reset counter if it was building up
+            if START_GESTURE_FRAME_COUNT > 0 and START_GESTURE_FRAME_COUNT < 60:
+                print(f"[HOLD] Interrupted at {START_GESTURE_FRAME_COUNT} frames")
+                START_GESTURE_FRAME_COUNT = 0
+                GESTURE_START_HOLD_TIME = 0.0
+
+
 def process_gesture_spells():
     """
-    Process spells detected via gesture recognition server.
-    Called every frame to check for new spells from gesture client.
+    Process spells detected via gesture recognition server with focus/holding/cast states.
+    
+    States:
+    - "focus": Spell first detected → Select spell in spell bar
+    - "holding": Gesture being held → Show chaining animation
+    - "cast": Gesture released after 1s → Actually cast the spell
     """
-    global GESTURE_CLIENT, GESTURE_SPELL_COOLDOWN, PLAYER, SPELL_MANAGER, SPELL_BAR, MONSTERS
+    global GESTURE_CLIENT, PLAYER, SPELL_MANAGER, SPELL_BAR, MONSTERS
+    global GAME_STARTED, WAITING_FOR_START_GESTURE, WAITING_FOR_RESTART_GESTURE, GAME_OVER
+    global STATUE
     
     if not GESTURE_CLIENT or not PLAYER or not SPELL_MANAGER:
         return
     
-    # Update cooldown
-    GESTURE_SPELL_COOLDOWN -= 1.0 / 60.0  # Assuming 60 FPS
-    if GESTURE_SPELL_COOLDOWN < 0:
-        GESTURE_SPELL_COOLDOWN = 0
-    
-    # Get next spell from gesture client queue
     spell_event = GESTURE_CLIENT.get_next_spell()
     
-    if spell_event:
-        gesture_name = spell_event.get('spell')
-        confidence = spell_event.get('confidence', 0)
-        
-        print(f"[GESTURE] Received: {gesture_name} ({confidence:.1f}%)")
-        
-        # Map gesture to spell type
-        if gesture_name in GESTURE_TO_SPELL:
-            spell_type = GESTURE_TO_SPELL[gesture_name]
-            print(f"[GESTURE] Mapped {gesture_name} -> {spell_type}")
+    if not spell_event:
+        return
+    
+    gesture_name = spell_event.get('spell')
+    confidence = spell_event.get('confidence', 0)
+    spell_state = spell_event.get('state', 'cast')  # ✅ NEW: spell state
+    
+    # === BEFORE GAME START: Any spell (focus state) starts the game ===
+    if not GAME_STARTED and WAITING_FOR_START_GESTURE:
+        if spell_state == 'focus':  # Only start on initial focus
+            print(f"\n[START] {gesture_name} ({confidence:.1f}%) → Starting game")
+            GAME_STARTED = True
+            WAITING_FOR_START_GESTURE = False
+        return
+    
+    # === AFTER GAME OVER: Any spell (focus state) restarts the game ===
+    if GAME_OVER and WAITING_FOR_RESTART_GESTURE:
+        if spell_state == 'focus':  # Only restart on initial focus
+            print(f"\n[RESTART] {gesture_name} ({confidence:.1f}%) → Restarting game")
+            GAME_OVER = False
+            GAME_STARTED = True
+            WAITING_FOR_RESTART_GESTURE = False
             
-            # Check if spell exists in spell manager
+            # Clear monsters and reset game variables
+            MONSTERS.clear()
+            
+            # Reset player health and mana
+            if PLAYER:
+                PLAYER.health = PLAYER.max_health
+                PLAYER.mana = PLAYER.max_mana
+            
+            # Reset statue health
+            if STATUE:
+                STATUE.health = STATUE.max_health
+                STATUE.display_health = float(STATUE.max_health)
+            
+            # ✅ RESET WAVE SYSTEM to start from Wave 1
+            global CURRENT_WAVE, WAVE_MONSTERS_LEFT, WAVE_SPAWN_TIMER, WAVE_CLEAR_TIMER
+            global WAVE_WAITING, WAVE_COUNTDOWN, WAVE_COUNTDOWN_ACTIVE, ALL_WAVES_DONE
+            global WAVE_ANNOUNCE_TIMER
+            
+            CURRENT_WAVE = 0
+            WAVE_MONSTERS_LEFT = []
+            WAVE_SPAWN_TIMER = 0.0
+            WAVE_CLEAR_TIMER = 0.0
+            WAVE_WAITING = False
+            WAVE_COUNTDOWN = 0.0
+            WAVE_COUNTDOWN_ACTIVE = False
+            WAVE_ANNOUNCE_TIMER = 0.0
+            ALL_WAVES_DONE = False
+            
+            # ✅ RESET KILL COUNTER
+            if SPELL_BAR:
+                SPELL_BAR.shared_kills = 0
+                SPELL_BAR._prev_alive = 0
+        
+        return
+    
+    # === DURING GAME: Handle focus/holding/cast states ===
+    if GAME_STARTED and not GAME_OVER:
+        if gesture_name not in GESTURE_TO_SPELL:
+            print(f"[ERROR] {gesture_name} not in gesture mapping")
+            return
+        
+        spell_type = GESTURE_TO_SPELL[gesture_name]
+        
+        # ✅ FOCUS STATE: Select and focus the spell
+        if spell_state == 'focus':
+            print(f"[FOCUS] {gesture_name} → Select & Focus spell (searching for: {spell_type})")
+            
+            # Find spell index by matching spell type name
+            spell_index = None
+            for idx, (spell_key, spell_config) in enumerate(SPELL_MANAGER.spell_configs.items()):
+                config_name = spell_config.get('name', spell_key)
+                print(f"  [DEBUG] Checking index {idx}: key={spell_key}, name={config_name}")
+                
+                # Match by either spell_key or config name
+                if spell_key == spell_type or config_name == spell_type:
+                    spell_index = idx
+                    print(f"  [DEBUG] ✓ Match found! spell_index={spell_index}")
+                    break
+            
+            if spell_index is not None:
+                print(f"[FOCUS] Setting selected_spell_index to {spell_index}")
+                PLAYER.selected_spell_index = spell_index
+                SPELL_MANAGER.selected_spell_index = spell_index  # ✅ Update spell manager too!
+                
+                # Trigger UI highlight
+                if SPELL_BAR:
+                    SPELL_BAR.selected_index = spell_index  # ✅ Update spell bar selection
+                    SPELL_BAR.try_select(spell_index)
+                    SPELL_BAR.trigger_highlight(spell_index)
+                
+                print(f"[FOCUS] ✓ {gesture_name} selected! Index={spell_index}")
+            else:
+                print(f"[FOCUS] ✗ Could not find spell index for '{spell_type}'")
+                print(f"[FOCUS] Available spells: {list(SPELL_MANAGER.spell_configs.keys())}")
+            
+            return
+        
+        # ✅ HOLDING STATE: Show chaining animation
+        if spell_state == 'holding':
+            # Check if this is the same spell as focused
+            if PLAYER.selected_spell_index is not None:
+                # ✅ Only trigger animation if not already in CAST_SPELL state
+                if PLAYER.state != EntityState.CAST_SPELL:
+                    PLAYER.casting_stage = "casting"  # ✅ Prevent update() from overriding state
+                    PLAYER.set_state(EntityState.CAST_SPELL, reset_frame=False)
+                    print(f"[HOLDING] {gesture_name} - Casting animation started")
+                
+                # Trigger animation/highlight while holding
+                if SPELL_BAR:
+                    SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
+            return
+        
+        # ✅ CAST STATE: Actually cast the spell
+        if spell_state == 'cast':
+            print(f"[CAST] {gesture_name} ({confidence:.1f}%) - Casting spell")
+            PLAYER.casting_stage = None  # ✅ Reset so update() manages state normally
+            
             if spell_type not in SPELL_MANAGER.spell_configs:
                 available_spells = list(SPELL_MANAGER.spell_configs.keys())
-                print(f"[CAST] ERROR: '{spell_type}' not found in spell manager")
-                print(f"[CAST] Available spells: {available_spells}")
+                print(f"[ERROR] Spell '{spell_type}' not found in spell manager")
+                print(f"[ERROR] Available: {available_spells}")
+                return
+            
+            # Try to cast spell by name
+            alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+            print(f"[SPELL] Targets available: {len(alive)}")
+            
+            if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
+                if SPELL_BAR:
+                    SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
+                print(f"[CAST] ✓ {gesture_name} ({confidence:.1f}%) - SPELL CAST!")
             else:
-                # Try to cast spell by name
-                alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
-                print(f"[GESTURE] Targets available: {len(alive)}")
-                
-                if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
-                    GESTURE_SPELL_COOLDOWN = GESTURE_SPELL_COOLDOWN_TIME
-                    
-                    if SPELL_BAR:
-                        # Update spell bar to show last cast
-                        SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
-                    
-                    print(f"[CAST] {gesture_name} ({confidence:.1f}%) - SPELL CAST!")
-                else:
-                    print(f"[CAST] {gesture_name} - FAILED (no targets or cast error)")
-        else:
-            print(f"[GESTURE] {gesture_name} not in mapping: {list(GESTURE_TO_SPELL.keys())}")
+                print(f"[CAST] ✗ {gesture_name} - Failed (no targets or error)")
 
 
 def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):
     """Update player input/movement/animation and monster AI."""
-    global GAME_OVER
+    global GAME_OVER, GAME_STARTED, WAITING_FOR_START_GESTURE, WAITING_FOR_RESTART_GESTURE
+
+    # === BEFORE GAME START: Wait for first gesture ===
+    if not GAME_STARTED:
+        WAITING_FOR_START_GESTURE = True
+        process_gesture_spells()  # Any spell triggers game start
+        return
+    
+    # === AFTER GAME OVER: Wait for gesture to restart ===
+    if GAME_OVER:
+        WAITING_FOR_RESTART_GESTURE = True
+        process_gesture_spells()  # Any spell triggers restart
+        return
 
     if PLAYER:
         PLAYER.handle_input()
@@ -680,10 +842,101 @@ def _draw_wave_banner(screen):
         screen.blit(ind_text, (sw - ind_text.get_width() - 15, 12))
 
 
+def _draw_gesture_start_banner(screen):
+    """Draw red banner for start gesture: 'Perform any spell gesture for 1s to start the game'"""
+    sw = screen.get_width()
+    sh = screen.get_height()
+    cx = sw // 2
+    cy = sh // 2
+    
+    main_font = pygame.font.Font(None, 48)
+    
+    main_text = main_font.render("Perform any spell gesture for 1s", True, (255, 100, 100))
+    sub_text = main_font.render("to start the game", True, (255, 100, 100))
+    
+    # Banner height
+    banner_h = main_text.get_height() + sub_text.get_height() + 30
+    banner_y = cy - banner_h // 2
+    
+    # Background
+    bg = pygame.Surface((sw, banner_h))
+    bg.fill((0, 0, 0))
+    bg.set_alpha(160)
+    screen.blit(bg, (0, banner_y))
+    
+    # Draw texts
+    mr = main_text.get_rect(centerx=cx, top=banner_y + 10)
+    sr = sub_text.get_rect(centerx=cx, top=mr.bottom + 5)
+    
+    screen.blit(main_text, mr)
+    screen.blit(sub_text, sr)
+
+
+def _draw_gesture_restart_banner(screen):
+    """Draw red banner for restart gesture: 'Perform any spell gesture for 1s to play again'"""
+    sw = screen.get_width()
+    sh = screen.get_height()
+    cx = sw // 2
+    cy = sh // 2
+    
+    main_font = pygame.font.Font(None, 48)
+    
+    main_text = main_font.render("Perform any spell gesture for 1s", True, (255, 100, 100))
+    sub_text = main_font.render("to play again", True, (255, 100, 100))
+    
+    # Banner height
+    banner_h = main_text.get_height() + sub_text.get_height() + 30
+    banner_y = cy - banner_h // 2
+    
+    # Background
+    bg = pygame.Surface((sw, banner_h))
+    bg.fill((0, 0, 0))
+    bg.set_alpha(160)
+    screen.blit(bg, (0, banner_y))
+    
+    # Draw texts
+    mr = main_text.get_rect(centerx=cx, top=banner_y + 10)
+    sr = sub_text.get_rect(centerx=cx, top=mr.bottom + 5)
+    
+    screen.blit(main_text, mr)
+    screen.blit(sub_text, sr)
+
+
 def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: ResourceManager = None, decorations: list = None):
     """
     Render order: background -> tiles -> decorations -> entities -> collision debug -> HUD.
     """
+    # === BEFORE GAME START: Show start gesture banner ===
+    if not GAME_STARTED and WAITING_FOR_START_GESTURE:
+        screen.fill(BACKGROUND_COLOR)
+        if tile_map:
+            tile_map.render(screen, offset_x=0, offset_y=0)
+        _draw_gesture_start_banner(screen)
+        pygame.display.flip()
+        return
+    
+    # === GAME OVER: Show restart gesture banner ===
+    if GAME_OVER and WAITING_FOR_RESTART_GESTURE:
+        screen.fill(BACKGROUND_COLOR)
+        if tile_map:
+            tile_map.render(screen, offset_x=0, offset_y=0)
+        
+        # Draw game over overlay first
+        overlay = pygame.Surface(screen.get_size())
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(150)
+        screen.blit(overlay, (0, 0))
+        
+        go_font = pygame.font.Font(None, 72)
+        go_text = go_font.render("GAME OVER", True, (255, 0, 0))
+        go_rect = go_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 - 100))
+        screen.blit(go_text, go_rect)
+        
+        # Then draw restart gesture banner
+        _draw_gesture_restart_banner(screen)
+        pygame.display.flip()
+        return
+    
     # Background + tiles
     screen.fill(BACKGROUND_COLOR)
     tile_map.render(screen, offset_x=0, offset_y=0)
@@ -791,23 +1044,6 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
     # Wave countdown / announcement banner
     if not SPELL_TEST_MODE and not GAME_OVER:
         _draw_wave_banner(screen)
-
-    # Game Over overlay
-    if GAME_OVER:
-        overlay = pygame.Surface(screen.get_size())
-        overlay.fill((0, 0, 0))
-        overlay.set_alpha(150)
-        screen.blit(overlay, (0, 0))
-
-        go_font = pygame.font.Font(None, 72)
-        go_text = go_font.render("GAME OVER", True, (255, 0, 0))
-        go_rect = go_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2))
-        screen.blit(go_text, go_rect)
-
-        sub_font = pygame.font.Font(None, 30)
-        sub_text = sub_font.render("The statue has been destroyed! Press ESC to quit.", True, (255, 255, 255))
-        sub_rect = sub_text.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + 50))
-        screen.blit(sub_text, sub_rect)
 
     pygame.display.flip()
 

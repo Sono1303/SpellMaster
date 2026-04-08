@@ -59,7 +59,7 @@ class SpellRecognizer:
             raise
         
         # Configuration
-        self.confidence_threshold = 0.75  # 75% confidence threshold
+        self.confidence_threshold = 0.85  # 85% confidence threshold
         
         # Smoothing for stable predictions
         self.smoothing_factor = 0.6

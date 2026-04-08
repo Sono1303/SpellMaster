@@ -103,22 +103,26 @@ class GestureServer:
         
         # Gesture holding system (charge/animation chaining)
         self.current_gesture_name = None          # Currently held gesture
+        self.current_gesture_confidence = 0.0     # Confidence of current held gesture
         self.gesture_hold_start_time = None       # When gesture was first detected
         self.gesture_hold_duration = 1.0          # Duration to hold (1 second)
         self.gesture_broadcast = False            # Flag: should broadcast after hold
+        self.gesture_to_broadcast = None          # Gesture name to broadcast on release
+        self.gesture_to_broadcast_confidence = 0.0  # Confidence to broadcast on release
         
         # Running state
         self.running = True
         self.fps_counter = 0
         self.fps_timer = time.time()
         
-    def broadcast_spell(self, spell_name: str, confidence: float) -> bool:
+    def broadcast_spell(self, spell_name: str, confidence: float, state: str = "cast") -> bool:
         """
         Send detected spell to game client via UDP.
         
         Args:
             spell_name: Name of detected spell
             confidence: Confidence percentage (0-100)
+            state: Spell state - "focus" (just detected), "holding" (being held), "cast" (released)
         
         Returns:
             True if sent successfully, False otherwise
@@ -128,13 +132,20 @@ class GestureServer:
                 'type': 'spell_detected',
                 'spell': spell_name,
                 'confidence': round(confidence, 2),
+                'state': state,  # ✅ NEW: spell state for focus/holding/cast
                 'timestamp': time.time()
             }
             
             message = json.dumps(payload)
             self.socket.sendto(message.encode(), (self.client_host, self.client_port))
             
-            print(f"[BROADCAST] {spell_name} ({confidence:.1f}%) -> {self.client_host}:{self.client_port}")
+            if state == "focus":
+                print(f"[FOCUS] {spell_name} ({confidence:.1f}%) - Detected!")
+            elif state == "holding":
+                print(f"[HOLDING] {spell_name}: {int(round(confidence * 100))}%", end='\r')  # Compact log
+            elif state == "cast":
+                print(f"[CAST] {spell_name} ({confidence:.1f}%) - Spell cast!")
+            
             return True
         
         except Exception as e:
@@ -271,59 +282,96 @@ class GestureServer:
             print(f"[X] Error in cooldown check: {e}")
             return False
     
-    def update_gesture_hold(self, spell_name: Optional[str], confidence: float) -> bool:
+    def update_gesture_hold(self, spell_name: Optional[str], confidence: float) -> dict:
         """
-        Track gesture holding duration for animation chaining.
-        Returns True when gesture has been held for required duration.
+        Track gesture holding duration for real-time focus/holding/cast states.
         
         Args:
             spell_name: Current detected spell (or None if no detection)
             confidence: Detection confidence
         
         Returns:
-            True if should broadcast (gesture held for 1s), False otherwise
+            dict with keys:
+              - 'state': "focus" (new), "holding" (active), "cast" (released), or None
+              - 'spell': spell name or None
+              - 'confidence': confidence float
+              - 'should_broadcast': bool
         """
         current_time = time.time()
         
-        # If no spell detected
-        if spell_name is None:
-            # If we were holding a gesture, reset
-            if self.current_gesture_name is not None:
-                held_time = current_time - self.gesture_hold_start_time if self.gesture_hold_start_time else 0
-                print(f"[HOLD] Gesture released: {self.current_gesture_name} (held {held_time:.2f}s)")
-                self.current_gesture_name = None
-                self.gesture_hold_start_time = None
+        # === GESTURE DETECTED ===
+        if spell_name is not None:
+            # NEW GESTURE: Return "focus" state
+            if spell_name != self.current_gesture_name:
+                # Start holding new gesture
+                self.current_gesture_name = spell_name
+                self.current_gesture_confidence = confidence
+                self.gesture_hold_start_time = current_time
                 self.gesture_broadcast = False
-            return False
-        
-        # If new gesture detected (different from current hold)
-        if spell_name != self.current_gesture_name:
-            # If we were holding something else, notify
-            if self.current_gesture_name is not None:
-                print(f"[HOLD] Gesture changed: {self.current_gesture_name} -> {spell_name}")
+                self.gesture_to_broadcast = None
+                
+                return {
+                    'state': 'focus',  # ✅ NEW: Focus state for instant spell selection
+                    'spell': spell_name,
+                    'confidence': confidence,
+                    'should_broadcast': True
+                }
             
-            # Start holding new gesture
-            self.current_gesture_name = spell_name
-            self.gesture_hold_start_time = current_time
+            # SAME GESTURE BEING HELD: Return "holding" state
+            if not self.gesture_broadcast and self.gesture_hold_start_time is not None:
+                self.current_gesture_confidence = confidence  # Update confidence
+                held_time = current_time - self.gesture_hold_start_time
+                
+                # Show progress, but less verbose for real-time updates
+                if int(held_time * 10) % 3 == 0:  # Every ~0.3s
+                    progress = min(100, int(held_time / self.gesture_hold_duration * 100))
+                    print(f"[HOLD] {spell_name}: {held_time:.1f}s / {self.gesture_hold_duration}s [{progress}%]")
+            
+            return {
+                'state': 'holding',  # ✅ HOLDING: Animation chaining in game
+                'spell': spell_name,
+                'confidence': self.current_gesture_confidence,
+                'should_broadcast': True
+            }
+        
+        # === GESTURE RELEASED (spell_name is None) ===
+        if self.current_gesture_name is not None:
+            held_time = current_time - self.gesture_hold_start_time if self.gesture_hold_start_time else 0
+            gesture_being_released = self.current_gesture_name
+            confidence_being_released = self.current_gesture_confidence
+            
+            # Check if held long enough BEFORE resetting
+            should_broadcast = held_time >= self.gesture_hold_duration
+            
+            # Reset state immediately
+            self.current_gesture_name = None
+            self.current_gesture_confidence = 0.0
+            self.gesture_hold_start_time = None
             self.gesture_broadcast = False
-            print(f"[HOLD] Start: {spell_name} ({confidence:.1f}%)")
-            return False
-        
-        # Same gesture still detected - check if held long enough
-        if self.current_gesture_name == spell_name and self.gesture_hold_start_time is not None:
-            held_time = current_time - self.gesture_hold_start_time
             
-            # If held for required duration and not already broadcast
-            if held_time >= self.gesture_hold_duration and not self.gesture_broadcast:
-                self.gesture_broadcast = True
-                return True
-            
-            # Show progress (every 0.2s)
-            if int(held_time * 5) % 1 == 0:  # Every ~0.2s
-                progress = min(100, int(held_time / self.gesture_hold_duration * 100))
-                print(f"[HOLD] {spell_name}: {held_time:.1f}s / {self.gesture_hold_duration}s [{progress}%]")
+            if should_broadcast:
+                print(f"\n[HOLD] {gesture_being_released} released after {held_time:.2f}s")
+                return {
+                    'state': 'cast',  # ✅ CAST: Spell trigger on release
+                    'spell': gesture_being_released,
+                    'confidence': confidence_being_released,
+                    'should_broadcast': True
+                }
+            else:
+                print(f"\n[HOLD] {gesture_being_released} released after {held_time:.2f}s (too short, ignored)")
+                return {
+                    'state': None,
+                    'spell': None,
+                    'confidence': 0,
+                    'should_broadcast': False
+                }
         
-        return False
+        return {
+            'state': None,
+            'spell': None,
+            'confidence': 0,
+            'should_broadcast': False
+        }
     
     def print_statistics(self):
         """Print server statistics to console."""
@@ -429,20 +477,25 @@ class GestureServer:
                             # Continue even if display fails
                             time.sleep(0.001)
                     
-                    # Update gesture holding system (1s hold = broadcast)
-                    should_broadcast = self.update_gesture_hold(spell_name, confidence if spell_name else 0)
+                    # Update gesture holding system - returns {state, spell, confidence, should_broadcast}
+                    gesture_update = self.update_gesture_hold(spell_name, confidence if spell_name else 0)
                     
-                    # If gesture held for 1s, broadcast it
-                    if should_broadcast:
-                        # Broadcast spell to game client
-                        success = self.broadcast_spell(spell_name, confidence)
+                    # Broadcast based on state: "focus" (instant), "holding" (continuous), "cast" (release)
+                    if gesture_update['should_broadcast']:
+                        state = gesture_update['state']
+                        spell_to_send = gesture_update['spell']
+                        confidence_to_send = gesture_update['confidence']
+                        
+                        # Broadcast spell to game client with state
+                        success = self.broadcast_spell(spell_to_send, confidence_to_send, state=state)
                         
                         if success:
-                            self.stats['spells_detected'] += 1
-                            self.stats['last_spell'] = spell_name
-                            self.stats['last_confidence'] = confidence
+                            # Only count final casts for statistics
+                            if state == 'cast':
+                                self.stats['spells_detected'] += 1
+                                self.stats['last_spell'] = spell_to_send
+                                self.stats['last_confidence'] = confidence_to_send
                             
-                            print(f"\n[CAST] {spell_name} ({confidence:.1f}%) - Spell triggered!")
                             print(f"   -> Sent to {self.client_host}:{self.client_port}")
                 
                 except Exception as e:
