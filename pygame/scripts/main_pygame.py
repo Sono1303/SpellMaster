@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Main Pygame Module - Spell Master Game Loop
 Entry point for the pygame-based game engine. Handles window initialization,
@@ -26,6 +28,7 @@ from spell import SpellManager
 from sfx_manager import SFXManager
 from player_ui import PlayerUI
 from spell_bar import SpellBar
+from gesture_client import GestureClient
 import json
 
 MONSTER_TYPES = list(STAT_CONFIG["monsters"].keys())
@@ -58,6 +61,7 @@ SPELL_MANAGER = None
 SFX_MANAGER = None
 PLAYER_UI = None
 SPELL_BAR = None
+GESTURE_CLIENT = None  # UDP client for gesture recognition server
 
 # Wave system state (normal mode)
 CURRENT_WAVE = 0
@@ -71,6 +75,23 @@ WAVE_COUNTDOWN = 0.0          # countdown seconds before wave starts
 WAVE_COUNTDOWN_ACTIVE = False # True = showing countdown
 WAVE_ANNOUNCE_TIMER = 0.0     # timer for "Wave X" text display after spawn starts
 WAVE_ANNOUNCE_DURATION = 2.0  # how long to show "Wave X" after countdown ends
+
+# Gesture recognition spell mapping
+# Maps gesture names to actual spell names from stat_config.json
+GESTURE_TO_SPELL = {
+    "Fire": "fire",
+    "Ice": "ice",
+    "Lightning": "lightning",
+    "Water": "water",
+    "Earth": "earth",
+    "Air": "air",
+    "Light": "light",
+    "Dark": "dark",
+    "Crystal": "crystal",
+    "Phoenix": "phoenix"
+}
+GESTURE_SPELL_COOLDOWN = 0.0
+GESTURE_SPELL_COOLDOWN_TIME = 0.5  # Minimum 0.5s between gesture spells
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -334,6 +355,59 @@ def _update_wave_spawn(dt):
             WAVE_CLEAR_TIMER = 0.0
 
 
+def process_gesture_spells():
+    """
+    Process spells detected via gesture recognition server.
+    Called every frame to check for new spells from gesture client.
+    """
+    global GESTURE_CLIENT, GESTURE_SPELL_COOLDOWN, PLAYER, SPELL_MANAGER, SPELL_BAR, MONSTERS
+    
+    if not GESTURE_CLIENT or not PLAYER or not SPELL_MANAGER:
+        return
+    
+    # Update cooldown
+    GESTURE_SPELL_COOLDOWN -= 1.0 / 60.0  # Assuming 60 FPS
+    if GESTURE_SPELL_COOLDOWN < 0:
+        GESTURE_SPELL_COOLDOWN = 0
+    
+    # Get next spell from gesture client queue
+    spell_event = GESTURE_CLIENT.get_next_spell()
+    
+    if spell_event:
+        gesture_name = spell_event.get('spell')
+        confidence = spell_event.get('confidence', 0)
+        
+        print(f"[GESTURE] Received: {gesture_name} ({confidence:.1f}%)")
+        
+        # Map gesture to spell type
+        if gesture_name in GESTURE_TO_SPELL:
+            spell_type = GESTURE_TO_SPELL[gesture_name]
+            print(f"[GESTURE] Mapped {gesture_name} -> {spell_type}")
+            
+            # Check if spell exists in spell manager
+            if spell_type not in SPELL_MANAGER.spell_configs:
+                available_spells = list(SPELL_MANAGER.spell_configs.keys())
+                print(f"[CAST] ERROR: '{spell_type}' not found in spell manager")
+                print(f"[CAST] Available spells: {available_spells}")
+            else:
+                # Try to cast spell by name
+                alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+                print(f"[GESTURE] Targets available: {len(alive)}")
+                
+                if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
+                    GESTURE_SPELL_COOLDOWN = GESTURE_SPELL_COOLDOWN_TIME
+                    
+                    if SPELL_BAR:
+                        # Update spell bar to show last cast
+                        SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
+                    
+                    print(f"[CAST] {gesture_name} ({confidence:.1f}%) - SPELL CAST!")
+                else:
+                    print(f"[CAST] {gesture_name} - FAILED (no targets or cast error)")
+        else:
+            print(f"[GESTURE] {gesture_name} not in mapping: {list(GESTURE_TO_SPELL.keys())}")
+
+
 def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):
     """Update player input/movement/animation and monster AI."""
     global GAME_OVER
@@ -347,6 +421,9 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
         PLAYER_UI.update(dt)
     if SPELL_BAR:
         SPELL_BAR.update(dt)
+    
+    # Process spells from gesture recognition server
+    process_gesture_spells()
 
     # Spell system
     if SPELL_MANAGER and PLAYER:
@@ -737,6 +814,8 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
 
 def main():
     """Main game loop."""
+    global GESTURE_CLIENT
+    
     try:
         print("Starting Spell Master Pygame Engine...")
         screen = initialize_pygame()
@@ -750,6 +829,17 @@ def main():
             import traceback
             traceback.print_exc()
             tile_map = None
+
+        # Initialize gesture recognition client (UDP listener for gesture server)
+        print("Starting gesture recognition client...")
+        try:
+            GESTURE_CLIENT = GestureClient(host='localhost', port=6666)
+            GESTURE_CLIENT.start()
+            print("[+] Gesture client initialized (listening for spell events)")
+        except Exception as e:
+            print(f"[!] Warning: Could not start gesture client: {e}")
+            print("  Game will run without gesture recognition")
+            GESTURE_CLIENT = None
 
         print("Entering main game loop...")
         running = True
@@ -776,6 +866,11 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
+        # Cleanup gesture client
+        if GESTURE_CLIENT:
+            GESTURE_CLIENT.print_stats()
+            GESTURE_CLIENT.stop()
+        
         pygame.quit()
         print("Pygame shutdown complete")
 

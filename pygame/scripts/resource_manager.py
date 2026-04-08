@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Resource Manager Module - Spell Master Asset Loading
 Centralized management of game resources including images, sounds, fonts, and sprite sheets.
@@ -222,7 +224,7 @@ class ResourceManager:
         """
         json_file = Path(json_path)
         if not json_file.exists():
-            print(f"✗ JSON file not found: {json_path}")
+            print(f"[X] JSON file not found: {json_path}")
             return False
         
         try:
@@ -237,22 +239,22 @@ class ResourceManager:
                 assets = sheet_data.get("assets", [])
                 
                 if not file_path:
-                    print(f"  ⚠ Sheet {sheet_idx}: Missing file_path, skipping")
+                    print(f"  [!] Sheet {sheet_idx}: Missing file_path, skipping")
                     continue
                 
                 # Resolve file path relative to JSON file directory
                 sheet_path = json_file.parent / file_path
                 if not sheet_path.exists():
-                    print(f"  ✗ Sheet {sheet_idx}: File not found: {sheet_path}")
+                    print(f"  [X] Sheet {sheet_idx}: File not found: {sheet_path}")
                     continue
                 
                 # Load sprite sheet image once
                 try:
                     spritesheet = pygame.image.load(str(sheet_path))
-                    print(f"  ✓ Loaded sprite sheet: {sheet_path}")
-                    print(f"    Size: {spritesheet.get_width()}×{spritesheet.get_height()} pixels")
+                    print(f"  [+] Loaded sprite sheet: {sheet_path}")
+                    print(f"    Size: {spritesheet.get_width()}x{spritesheet.get_height()} pixels")
                 except pygame.error as e:
-                    print(f"  ✗ Failed to load sprite sheet {sheet_path}: {e}")
+                    print(f"  [X] Failed to load sprite sheet {sheet_path}: {e}")
                     continue
                 
                 # Extract individual sprites
@@ -261,7 +263,7 @@ class ResourceManager:
                     rect = asset_data.get("rect")
                     
                     if not name or not rect:
-                        print(f"    ⚠ Invalid asset data: {asset_data}")
+                        print(f"    [!] Invalid asset data: {asset_data}")
                         continue
                     
                     try:
@@ -274,7 +276,7 @@ class ResourceManager:
                         if x + w > spritesheet.get_width() or y + h > spritesheet.get_height():
                             raise ValueError(
                                 f"Rect {rect} exceeds sheet size "
-                                f"{spritesheet.get_width()}×{spritesheet.get_height()}"
+                                f"{spritesheet.get_width()}x{spritesheet.get_height()}"
                             )
                         
                         # Crop sprite from sheet - preserve alpha channel
@@ -284,10 +286,10 @@ class ResourceManager:
                         # Store in cache
                         self.asset_cache[name] = sprite_surface
                         self.asset_sizes[name] = (w, h)
-                        print(f"    ✓ {name}: {w}×{h}px at ({x}, {y})")
+                        print(f"    [+] {name}: {w}x{h}px at ({x}, {y})")
                     
                     except (ValueError, TypeError) as e:
-                        print(f"    ✗ Error loading '{name}': {e}")
+                        print(f"    [X] Error loading '{name}': {e}")
                         # Create pink placeholder
                         w = rect[2] if len(rect) > 2 else 64
                         h = rect[3] if len(rect) > 3 else 64
@@ -309,9 +311,9 @@ class ResourceManager:
                             "color": tuple(color) if isinstance(color, list) else color,
                             "defense_modifier": tile_data.get("defense_modifier", 0.0),
                         }
-                        print(f"  ✓ Tile {tile_id}: {self.tile_config[tile_id]['name']}")
+                        print(f"  [+] Tile {tile_id}: {self.tile_config[tile_id]['name']}")
                     except (ValueError, KeyError) as e:
-                        print(f"  ✗ Error loading tile config for {tile_id_str}: {e}")
+                        print(f"  [X] Error loading tile config for {tile_id_str}: {e}")
                 print()
             
             # Load collision configuration from JSON
@@ -326,19 +328,19 @@ class ResourceManager:
                             "width": width,
                             "height": height,
                         }
-                        print(f"  ✓ {asset_name}: {width}×{height}px")
+                        print(f"  [+] {asset_name}: {width}x{height}px")
                     except (ValueError, KeyError) as e:
-                        print(f"  ✗ Error loading collision config for '{asset_name}': {e}")
+                        print(f"  [X] Error loading collision config for '{asset_name}': {e}")
                 print()
             
-            print(f"\n✓ Total assets loaded: {len(self.asset_cache)}\n")
+            print(f"\n[+] Total assets loaded: {len(self.asset_cache)}\n")
             return True
         
         except json.JSONDecodeError as e:
-            print(f"✗ JSON parse error in {json_path}: {e}")
+            print(f"[X] JSON parse error in {json_path}: {e}")
             return False
         except Exception as e:
-            print(f"✗ Error loading assets: {e}")
+            print(f"[X] Error loading assets: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -360,7 +362,7 @@ class ResourceManager:
         Get the dimensions of a sprite asset.
         
         This is crucial for correct sprite positioning. Different sprites have
-        different sizes (e.g., 66×99 for stairs, 10×100 for statues), so you
+        different sizes (e.g., 66x99 for stairs, 10x100 for statues), so you
         need to know the real dimensions to:
         
         1. Calculate drawing position correctly:
@@ -454,12 +456,12 @@ class AnimationCache:
     - frame_count: Number of frames to extract
     
     FRAME EXTRACTION (Grid-Based):
-    1. Sprite sheet is divided into equal cells: grid_rows × grid_cols
+    1. Sprite sheet is divided into equal cells: grid_rows x grid_cols
     2. Each cell size: frame_width = sheet_width / grid_cols, frame_height = sheet_height / grid_rows
     3. Frames are extracted sequentially: left-to-right, then wrap to next row
     
     Example:
-        Sprite sheet: 651×77 pixels, grid: 1 row × 10 cols
+        Sprite sheet: 651x77 pixels, grid: 1 row x 10 cols
         - Frame size: 651/10 = 65px wide, 77/1 = 77px tall
         - start_row=0, start_col=0, frame_count=7 → extracts 7 frames from left
         - start_row=0, start_col=3, frame_count=4 → extracts 4 frames starting at column 3
@@ -526,7 +528,7 @@ class AnimationCache:
         """
         json_file = Path(json_path)
         if not json_file.exists():
-            print(f"✗ Animations JSON not found: {json_path}")
+            print(f"[X] Animations JSON not found: {json_path}")
             return False
         
         try:
@@ -551,13 +553,13 @@ class AnimationCache:
                         scale = anim_config.get("scale", 1.0)  # Default scale 1.0 (no scaling)
                         
                         if not spritesheet_path:
-                            print(f"    ⚠ Invalid config for {anim_name}: missing sprite_sheet")
+                            print(f"    [!] Invalid config for {anim_name}: missing sprite_sheet")
                             continue
                         
                         # Resolve sprite sheet path relative to JSON file
                         sheet_path = json_file.parent / spritesheet_path
                         if not sheet_path.exists():
-                            print(f"    ✗ Sprite sheet not found: {sheet_path}")
+                            print(f"    [X] Sprite sheet not found: {sheet_path}")
                             continue
                         
                         # Load sprite sheet (or get from cache)
@@ -566,9 +568,9 @@ class AnimationCache:
                             try:
                                 spritesheet = pygame.image.load(str(sheet_path))
                                 self.spritesheet_cache[sheet_key] = spritesheet
-                                print(f"    ✓ Loaded sprite sheet: {sheet_path.name}")
+                                print(f"    [+] Loaded sprite sheet: {sheet_path.name}")
                             except pygame.error as e:
-                                print(f"    ✗ Failed to load sprite sheet: {e}")
+                                print(f"    [X] Failed to load sprite sheet: {e}")
                                 continue
                         else:
                             spritesheet = self.spritesheet_cache[sheet_key]
@@ -593,18 +595,18 @@ class AnimationCache:
                             self.animation_durations[entity_name] = {}
                         self.animation_durations[entity_name][anim_name] = anim_config.get("frame_duration", 0.15)
                         
-                        print(f"    ✓ {anim_name}: {len(frames)} frames (scale: {scale})")
+                        print(f"    [+] {anim_name}: {len(frames)} frames (scale: {scale})")
                     
                     except Exception as e:
-                        print(f"    ✗ Error loading animation {anim_name}: {e}")
+                        print(f"    [X] Error loading animation {anim_name}: {e}")
             
             return True
         
         except json.JSONDecodeError as e:
-            print(f"✗ JSON parse error: {e}")
+            print(f"[X] JSON parse error: {e}")
             return False
         except Exception as e:
-            print(f"✗ Error loading animations: {e}")
+            print(f"[X] Error loading animations: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -662,7 +664,7 @@ class AnimationCache:
             List of pygame.Surface for each frame
             
         Example:
-            Sprite sheet 651×77px with 1 row, 10 cols:
+            Sprite sheet 651x77px with 1 row, 10 cols:
             - frame_width = 651 / 10 = 65px
             - frame_height = 77 / 1 = 77px
             - start_row=0, start_col=0, frame_count=7 extracts 7 frames from left
@@ -674,7 +676,7 @@ class AnimationCache:
         frame_height = spritesheet.get_height() // grid_rows
         
         if frame_width == 0 or frame_height == 0:
-            print(f"      ✗ Invalid grid: {grid_rows}×{grid_cols} for sheet {spritesheet.get_width()}×{spritesheet.get_height()}")
+            print(f"      [X] Invalid grid: {grid_rows}x{grid_cols} for sheet {spritesheet.get_width()}x{spritesheet.get_height()}")
             return frames
         
         # Extract frames sequentially starting from start_row, start_col
@@ -686,7 +688,7 @@ class AnimationCache:
             
             # Check bounds
             if current_row >= grid_rows:
-                print(f"      ⚠ Frame {i}: Exceeded grid rows (row {current_row} >= {grid_rows})")
+                print(f"      [!] Frame {i}: Exceeded grid rows (row {current_row} >= {grid_rows})")
                 break
             
             # Convert grid position to pixel coordinates

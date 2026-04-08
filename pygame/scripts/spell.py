@@ -305,6 +305,55 @@ class SpellManager:
             return True
         return False
 
+    def cast_by_name(self, spell_name: str, player, monsters: list) -> bool:
+        """
+        Cast a spell by name at the nearest monster.
+        Used for gesture recognition and direct spell triggering.
+        
+        Args:
+            spell_name: Name of spell to cast (e.g., "fireball", "freeze", "lightning")
+            player: Player instance
+            monsters: List of monster instances
+        
+        Returns:
+            True if spell was cast successfully, False otherwise
+        """
+        # Validate spell exists
+        if spell_name not in self.spell_configs:
+            print(f"[SPELL] Unknown spell: {spell_name}")
+            return False
+        
+        cfg = self.spell_configs[spell_name]
+        
+        # Check mana
+        if player.mana < cfg["mana_cost"]:
+            print(f"[SPELL] Not enough mana for {spell_name} (need {cfg['mana_cost']}, have {player.mana})")
+            return False
+        
+        # Find nearest alive monster
+        target = self._find_nearest_monster(player, monsters)
+        if target is None:
+            print(f"[SPELL] No target for {spell_name}")
+            return False
+        
+        # Deduct mana
+        player.mana -= cfg["mana_cost"]
+        
+        # Spawn position: target collision center
+        tx = getattr(target, 'col_x', target.x) + getattr(target, 'collision_width', 0) / 2
+        ty = getattr(target, 'col_y', target.y) + getattr(target, 'collision_height', 0) / 2
+        
+        # Create and add spell effect
+        spell_effect = self._create_spell_effect(spell_name, cfg, tx, ty, target)
+        if spell_effect:
+            self.active_spells.append(spell_effect)
+            if self.sfx_manager:
+                self.sfx_manager.play("spell", spell_name)
+            print(f"[SPELL] Cast {spell_name} at ({tx:.0f}, {ty:.0f})")
+            return True
+        
+        return False
+
     def _find_nearest_monster(self, player, monsters: list):
         px = player.col_x + player.collision_width / 2
         py = player.col_y + player.collision_height / 2
