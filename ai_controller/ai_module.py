@@ -71,10 +71,10 @@ class GestureAI:
         try:
             self.model = joblib.load(str(model_path))
             self.model_classes = self.model.classes_
-            print(f"✓ Model loaded: {model_path.name}")
+            print(f"[OK] Model loaded: {model_path.name}")
             print(f"  Recognized spells: {list(self.model_classes)}")
         except Exception as e:
-            print(f"✗ Failed to load model: {e}")
+            print(f"[X] Failed to load model: {e}")
             raise
     
     def _initialize_mediapipe(self):
@@ -92,7 +92,7 @@ class GestureAI:
             min_tracking_confidence=MIN_TRACKING_CONFIDENCE
         )
         
-        print(f"✓ MediaPipe Hands initialized")
+        print(f"[OK] MediaPipe Hands initialized")
         print(f"  Model complexity: {MEDIAPIPE_MODEL_COMPLEXITY}")
         print(f"  Detection confidence: {MIN_DETECTION_CONFIDENCE}")
         print(f"  Tracking confidence: {MIN_TRACKING_CONFIDENCE}")
@@ -158,7 +158,7 @@ class GestureAI:
                 return None, 0
         
         except Exception as e:
-            print(f"✗ Prediction error: {e}")
+            print(f"[X] Prediction error: {e}")
             return None, 0
     
     def _store_landmarks(self, results, frame_w, frame_h):
@@ -242,7 +242,7 @@ class GestureAI:
             results: MediaPipe detection results
         
         Returns:
-            NumPy array of 84 coordinates (42 landmarks × 2 coords each) or None
+            NumPy array of 84 coordinates (42 landmarks x 2 coords each) or None
         """
         left_coords = []
         right_coords = []
@@ -352,4 +352,4 @@ class GestureAI:
         """Clean up resources."""
         if hasattr(self, 'hands'):
             self.hands.close()
-            print("✓ MediaPipe resources released")
+            print("[OK] MediaPipe resources released")

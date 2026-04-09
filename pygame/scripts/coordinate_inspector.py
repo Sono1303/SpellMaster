@@ -85,13 +85,13 @@ class CoordinateSelection:
         """Set the starting position (top-left)"""
         self.start_pos = (x, y)
         self.state = SelectionState.WAITING_END
-        print(f"✓ Start position set: ({x}, {y})")
+        print(f"[OK] Start position set: ({x}, {y})")
     
     def set_end(self, x: int, y: int):
         """Set the ending position (bottom-right) and calculate dimensions"""
         self.end_pos = (x, y)
         self.state = SelectionState.COMPLETE
-        print(f"✓ End position set: ({x}, {y})")
+        print(f"[OK] End position set: ({x}, {y})")
         self.print_json_output()
     
     def get_rectangle(self) -> Optional[dict]:
@@ -119,7 +119,7 @@ class CoordinateSelection:
         if rect_data:
             json_output = json.dumps(rect_data, indent=2)
             print("\n" + "="*60)
-            print("📋 COPY THIS JSON (image-relative coordinates):")
+            print(" COPY THIS JSON (image-relative coordinates):")
             print("="*60)
             print(json_output)
             print("="*60)
@@ -131,7 +131,7 @@ class CoordinateSelection:
         self.state = SelectionState.WAITING_START
         self.start_pos = None
         self.end_pos = None
-        print("\n↻ Selection reset. Ready for next region.\n")
+        print("\n[*] Selection reset. Ready for next region.\n")
 
 
 # ============================================================================
@@ -173,7 +173,7 @@ def load_image(filename: str) -> Optional[pygame.Surface]:
     """
     filepath = find_image(filename)
     if filepath is None:
-        print(f"✗ Image not found: {filename}")
+        print(f"[X] Image not found: {filename}")
         print(f"  Searched in:")
         for path in ASSET_SEARCH_PATHS:
             print(f"    - {path}")
@@ -181,11 +181,11 @@ def load_image(filename: str) -> Optional[pygame.Surface]:
     
     try:
         image = pygame.image.load(str(filepath))
-        print(f"✓ Image loaded: {filepath}")
-        print(f"  Size: {image.get_width()}×{image.get_height()} pixels")
+        print(f"[OK] Image loaded: {filepath}")
+        print(f"  Size: {image.get_width()}x{image.get_height()} pixels")
         return image
     except pygame.error as e:
-        print(f"✗ Failed to load image: {e}")
+        print(f"[X] Failed to load image: {e}")
         return None
 
 
@@ -327,7 +327,7 @@ def main(image_filename: str = DEFAULT_IMAGE):
         # Load image
         image = load_image(image_filename)
         if image is None:
-            print("✗ Failed to load image. Exiting.")
+            print("[X] Failed to load image. Exiting.")
             pygame.quit()
             return
         
@@ -391,7 +391,7 @@ def main(image_filename: str = DEFAULT_IMAGE):
                                 selection.reset()
                                 selection.set_start(img_x, img_y)
                         else:
-                            print(f"⚠ Click outside image bounds: screen ({screen_x}, {screen_y}) -> image ({img_x}, {img_y})")
+                            print(f"[!] Click outside image bounds: screen ({screen_x}, {screen_y}) -> image ({img_x}, {img_y})")
             
             # Rendering
             screen.fill((50, 50, 50))  # Dark gray background
@@ -426,10 +426,10 @@ def main(image_filename: str = DEFAULT_IMAGE):
             
             pygame.display.flip()
         
-        print("\n✓ Inspector closed. Goodbye!\n")
+        print("\n[OK] Inspector closed. Goodbye!\n")
     
     except Exception as e:
-        print(f"\n✗ Error: {e}")
+        print(f"\n[X] Error: {e}")
         import traceback
         traceback.print_exc()
     

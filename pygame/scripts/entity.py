@@ -104,7 +104,7 @@ class Entity:
     def _load_animations(self):
         """Load all animations for this entity from the animation cache."""
         if not self.animation_cache:
-            print(f"⚠ No animation cache provided for {self.entity_name}")
+            print(f"[!] No animation cache provided for {self.entity_name}")
             return
         
         # Get all animation names for this entity
@@ -112,7 +112,7 @@ class Entity:
         self.animations = entity_anims
         
         if not self.animations:
-            print(f"⚠ No animations found for entity '{self.entity_name}'")
+            print(f"[!] No animations found for entity '{self.entity_name}'")
     
     def set_state(self, new_state: EntityState, reset_frame: bool = True):
         """
@@ -373,7 +373,7 @@ class Player(Entity):
                 self.collision_width, self.collision_height, debug
             )
 
-        # Check monster collision on X axis (skip if already overlapping — allow escape)
+        # Check monster collision on X axis (skip if already overlapping - allow escape)
         if x_walkable and monsters:
             cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
             next_rect = pygame.Rect(next_x + self.collision_offset_x, self.y + self.collision_offset_y,
@@ -406,7 +406,7 @@ class Player(Entity):
                 self.collision_width, self.collision_height, debug
             )
 
-        # Check monster collision on Y axis (skip if already overlapping — allow escape)
+        # Check monster collision on Y axis (skip if already overlapping - allow escape)
         if y_walkable and monsters:
             cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
             next_rect = pygame.Rect(self.x + self.collision_offset_x, next_y + self.collision_offset_y,
@@ -477,7 +477,7 @@ class Player(Entity):
         Update player (handle animation state based on movement and casting).
         
         Animation Priority:
-        1. Casting animations (PRE_CAST → CAST_SPELL → POST_CAST)
+        1. Casting animations (PRE_CAST -> CAST_SPELL -> POST_CAST)
         2. Movement animations (WALK_SIDE, WALK_FRONT, WALK_BACK)
         3. Idle animation
         
@@ -681,7 +681,7 @@ class Monster(Entity):
         # Death fade-out
         self._fade_timer = -1.0   # counts down from 1.0 after death anim finishes
         self._fade_alpha = 255
-        self._fully_dead = False  # True when fade complete → safe to remove
+        self._fully_dead = False  # True when fade complete -> safe to remove
 
         # HP bar sprites (loaded once, shared across all monsters)
         hp_cfg = cfg.get("hp_bar", {})
@@ -806,9 +806,9 @@ class Monster(Entity):
                 elif not self._dying:
                     self.set_state(EntityState.IDLE)
 
-        # Death animation — stop after last frame, then fade out
+        # Death animation - stop after last frame, then fade out
         if self._dying:
-            # Already fading → count down fade timer
+            # Already fading -> count down fade timer
             if self._fade_timer >= 0:
                 self._fade_timer -= dt
                 self._fade_alpha = max(0, int(255 * (self._fade_timer / 1.0)))
@@ -818,13 +818,13 @@ class Monster(Entity):
 
             death_anim = self.animations.get(EntityState.DEATH.value)
             if death_anim and self.current_frame_index >= len(death_anim) - 1:
-                # Death anim finished → start 1s fade
+                # Death anim finished -> start 1s fade
                 self._fade_timer = 1.0
                 return
             self._update_animation_frame(dt)
             return
 
-        # Attack animation — return to idle when finished
+        # Attack animation - return to idle when finished
         if self.state in (EntityState.ATTACK_1, EntityState.ATTACK_2):
             attack_anim = self.animations.get(self.state.value)
             if attack_anim and self.current_frame_index >= len(attack_anim) - 1:
@@ -856,7 +856,7 @@ class Monster(Entity):
                 player.x + player.collision_offset_x, player.y + player.collision_offset_y,
                 player.collision_width, player.collision_height)
 
-        # Check X axis — tiles/decorations
+        # Check X axis - tiles/decorations
         x_ok = True
         if tile_map:
             col_x = next_x + self.collision_offset_x
@@ -867,7 +867,7 @@ class Monster(Entity):
             else:
                 x_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
 
-        # Check X axis — player (skip if already overlapping)
+        # Check X axis - player (skip if already overlapping)
         if x_ok and player_rect:
             cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
             already_overlapping = cur_rect.colliderect(player_rect)
@@ -882,7 +882,7 @@ class Monster(Entity):
         if x_ok:
             self.x = next_x
 
-        # Check Y axis — tiles/decorations
+        # Check Y axis - tiles/decorations
         y_ok = True
         if tile_map:
             col_x = self.x + self.collision_offset_x
@@ -893,7 +893,7 @@ class Monster(Entity):
             else:
                 y_ok = tile_map.is_walkable_pixel(col_x, col_y, self.collision_width, self.collision_height)
 
-        # Check Y axis — player (skip if already overlapping)
+        # Check Y axis - player (skip if already overlapping)
         if y_ok and player_rect:
             cur_rect = pygame.Rect(self.col_x, self.col_y, self.collision_width, self.collision_height)
             already_overlapping = cur_rect.colliderect(player_rect)
@@ -1113,7 +1113,7 @@ class Monster(Entity):
 class Statue(Entity):
     """
     Attackable statue entity with HP bar.
-    Monsters target this as their primary objective. HP = 0 → Game Over.
+    Monsters target this as their primary objective. HP = 0 -> Game Over.
     """
 
     def __init__(self, x: float, y: float, resource_manager):

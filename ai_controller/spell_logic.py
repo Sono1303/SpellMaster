@@ -37,7 +37,7 @@ class SpellState(Enum):
 class SpellEvent(Enum):
     """Spell system events."""
     NONE = 0
-    EXECUTE_SPELL = 1     # Hand released during ACTIVATED → execute spell
+    EXECUTE_SPELL = 1     # Hand released during ACTIVATED -> execute spell
     CANCEL_CHANTING = 2   # Hand lost during CHANTING
     COOLDOWN_START = 3    # Cooldown started
     COOLDOWN_END = 4      # Cooldown finished
@@ -104,7 +104,7 @@ class SpellManager:
         self.last_event = SpellEvent.NONE
         
         if self.debug:
-            print(f"✓ SpellManager initialized (FPS: {fps})")
+            print(f"[OK] SpellManager initialized (FPS: {fps})")
             print(f"  Chant threshold: {self.chant_threshold_frames} frames ({self.chant_threshold_frames/fps:.2f}s)")
             print(f"  Cooldown duration: {self.cooldown_frames} frames ({self.cooldown_frames/fps:.2f}s)")
             print(f"  HP: {self.current_hp}/{self.max_hp}, MP: {self.current_mp}/{self.max_mp}")
@@ -138,25 +138,25 @@ class SpellManager:
         
         # State transition logic
         if self.current_state == SpellState.IDLE:
-            # IDLE → CHANTING: triggered externally via start_chanting()
+            # IDLE -> CHANTING: triggered externally via start_chanting()
             pass
         
         elif self.current_state == SpellState.CHANTING:
-            # CHANTING → ACTIVATED: when threshold reached
+            # CHANTING -> ACTIVATED: when threshold reached
             if self.state_frame_count >= self.chant_threshold_frames:
                 self._transition_to_activated()
         
         elif self.current_state == SpellState.ACTIVATED:
-            # ACTIVATED → EXECUTING: triggered externally via execute_spell()
+            # ACTIVATED -> EXECUTING: triggered externally via execute_spell()
             # Or back to IDLE if gesture is lost
             pass
         
         elif self.current_state == SpellState.EXECUTING:
-            # EXECUTING → COOLDOWN: triggered externally via finish_spell()
+            # EXECUTING -> COOLDOWN: triggered externally via finish_spell()
             pass
         
         elif self.current_state == SpellState.COOLDOWN:
-            # COOLDOWN → IDLE: when timer expires
+            # COOLDOWN -> IDLE: when timer expires
             if self.state_frame_count >= self.cooldown_frames:
                 self._transition_to_idle()
                 self.current_event = SpellEvent.COOLDOWN_END
@@ -182,7 +182,7 @@ class SpellManager:
             self._change_state(SpellState.CHANTING)
             self.hand_held = True
             if self.debug:
-                print(f"[Frame {self.frame_count}] → CHANTING (gesture detected)")
+                print(f"[Frame {self.frame_count}] -> CHANTING (gesture detected)")
     
     def on_hand_released(self):
         """
@@ -198,7 +198,7 @@ class SpellManager:
         self.current_event = SpellEvent.EXECUTE_SPELL
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] ✓ Hand released during ACTIVATED → SpellEvent.EXECUTE_SPELL")
+            print(f"[Frame {self.frame_count}] [OK] Hand released during ACTIVATED -> SpellEvent.EXECUTE_SPELL")
     
     def set_hand_held(self, held, spell_name=None):
         """
@@ -225,7 +225,7 @@ class SpellManager:
             self._change_state(SpellState.IDLE)
             
             if self.debug:
-                print(f"[Frame {self.frame_count}] ✗ Insufficient hands detected ({old_state} → IDLE, chant timer reset)")
+                print(f"[Frame {self.frame_count}] [X] Insufficient hands detected ({old_state} -> IDLE, chant timer reset)")
     
     def validate_hand_detection(self, spell_name):
         """
@@ -246,7 +246,7 @@ class SpellManager:
             self._change_state(SpellState.IDLE)
             
             if self.debug:
-                print(f"[Frame {self.frame_count}] ✗ Hand detection validation failed ({old_state} → IDLE, chant timer reset)")
+                print(f"[Frame {self.frame_count}] [X] Hand detection validation failed ({old_state} -> IDLE, chant timer reset)")
     
     def _transition_to_activated(self):
         """
@@ -256,7 +256,7 @@ class SpellManager:
         """
         self._change_state(SpellState.ACTIVATED)
         if self.debug:
-            print(f"[Frame {self.frame_count}] → ACTIVATED (chant threshold reached, "
+            print(f"[Frame {self.frame_count}] -> ACTIVATED (chant threshold reached, "
                   f"{self.state_frame_count - 1}/{self.chant_threshold_frames} frames)")
     
     def execute_spell(self, spell_name, confidence):
@@ -280,7 +280,7 @@ class SpellManager:
         # Check for sufficient mana
         if self.current_mp < self.mp_cost_per_spell:
             if self.debug:
-                print(f"[Frame {self.frame_count}] ✗ Insufficient mana! Need {self.mp_cost_per_spell}, "
+                print(f"[Frame {self.frame_count}] [X] Insufficient mana! Need {self.mp_cost_per_spell}, "
                       f"have {self.current_mp}")
             return False
         
@@ -295,7 +295,7 @@ class SpellManager:
         self._change_state(SpellState.EXECUTING)
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] → EXECUTING (spell: {spell_name}, "
+            print(f"[Frame {self.frame_count}] -> EXECUTING (spell: {spell_name}, "
                   f"confidence: {confidence*100:.1f}%, MP: {self.current_mp}/{self.max_mp})")
         
         return True
@@ -319,7 +319,7 @@ class SpellManager:
         self._change_state(SpellState.COOLDOWN)
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] → COOLDOWN ({self.cooldown_frames} frames, "
+            print(f"[Frame {self.frame_count}] -> COOLDOWN ({self.cooldown_frames} frames, "
                   f"{self.cooldown_frames/self.fps:.2f}s)")
     
     def _transition_to_idle(self):
@@ -331,7 +331,7 @@ class SpellManager:
         self._change_state(SpellState.IDLE)
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] → IDLE (cooldown complete)")
+            print(f"[Frame {self.frame_count}] -> IDLE (cooldown complete)")
     
     def cancel_chanting(self):
         """
@@ -342,7 +342,7 @@ class SpellManager:
         if self.current_state == SpellState.CHANTING:
             self._change_state(SpellState.IDLE)
             if self.debug:
-                print(f"[Frame {self.frame_count}] ✗ Chanting cancelled (gesture lost)")
+                print(f"[Frame {self.frame_count}] [X] Chanting cancelled (gesture lost)")
     
     def _change_state(self, new_state):
         """
@@ -492,7 +492,7 @@ class SpellManager:
         self.current_mp = min(self.max_mp, self.current_mp + amount)
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] ✓ Restored {amount} MP: {old_mp} → {self.current_mp}")
+            print(f"[Frame {self.frame_count}] [OK] Restored {amount} MP: {old_mp} -> {self.current_mp}")
     
     def take_damage(self, damage):
         """
@@ -505,7 +505,7 @@ class SpellManager:
         self.current_hp = max(0, self.current_hp - damage)
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] ✗ Took {damage} damage: {old_hp} → {self.current_hp}")
+            print(f"[Frame {self.frame_count}] [X] Took {damage} damage: {old_hp} -> {self.current_hp}")
     
     def heal(self, amount):
         """
@@ -518,7 +518,7 @@ class SpellManager:
         self.current_hp = min(self.max_hp, self.current_hp + amount)
         
         if self.debug:
-            print(f"[Frame {self.frame_count}] ✓ Healed {amount} HP: {old_hp} → {self.current_hp}")
+            print(f"[Frame {self.frame_count}] [OK] Healed {amount} HP: {old_hp} -> {self.current_hp}")
     
     # ==========================================================================
     # State Color and Display
@@ -599,7 +599,7 @@ class SpellManager:
             'Total Casts': self.spell_cast_count,
             'HP': f"{int(self.current_hp)}/{int(self.max_hp)}",
             'MP': f"{int(self.current_mp)}/{int(self.max_mp)}",
-            'Hand Held': "✓" if self.hand_held else "✗",
+            'Hand Held': "[OK]" if self.hand_held else "[X]",
             'Event': self.current_event.name,
         }
     

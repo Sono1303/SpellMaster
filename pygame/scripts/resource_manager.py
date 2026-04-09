@@ -463,8 +463,8 @@ class AnimationCache:
     Example:
         Sprite sheet: 651x77 pixels, grid: 1 row x 10 cols
         - Frame size: 651/10 = 65px wide, 77/1 = 77px tall
-        - start_row=0, start_col=0, frame_count=7 → extracts 7 frames from left
-        - start_row=0, start_col=3, frame_count=4 → extracts 4 frames starting at column 3
+        - start_row=0, start_col=0, frame_count=7 -> extracts 7 frames from left
+        - start_row=0, start_col=3, frame_count=4 -> extracts 4 frames starting at column 3
     
     COORDINATE SYSTEM:
     The sprite sheet grid is addressed as [row][col]:

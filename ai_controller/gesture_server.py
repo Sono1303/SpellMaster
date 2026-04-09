@@ -132,7 +132,7 @@ class GestureServer:
                 'type': 'spell_detected',
                 'spell': spell_name,
                 'confidence': round(confidence, 2),
-                'state': state,  # ✅ NEW: spell state for focus/holding/cast
+                'state': state,  # NEW: spell state for focus/holding/cast
                 'timestamp': time.time()
             }
             
@@ -255,7 +255,7 @@ class GestureServer:
             return
         
         if hands_close and len(hand_landmarks_list) >= 2:
-            # ✅ NEW: Merge 2 hands into 1 bounding box
+            # NEW: Merge 2 hands into 1 bounding box
             all_xs = []
             all_ys = []
             for hand_landmarks in hand_landmarks_list:
@@ -349,7 +349,7 @@ class GestureServer:
                 # Draw landmarks on frame if requested
                 if draw_frame:
                     self.recognizer.draw_landmarks(frame, results)
-                    # ✅ Draw bounding boxes with merge when hands are close
+                    # Draw bounding boxes with merge when hands are close
                     self.draw_hand_bounding_boxes(frame, results.multi_hand_landmarks, w, h, hands_close=hands_close)
                 
                 # Only detect gesture when BOTH hands are present and close together
@@ -443,7 +443,7 @@ class GestureServer:
                 self.gesture_to_broadcast = None
                 
                 return {
-                    'state': 'focus',  # ✅ NEW: Focus state for instant spell selection
+                    'state': 'focus',  # NEW: Focus state for instant spell selection
                     'spell': spell_name,
                     'confidence': confidence,
                     'should_broadcast': True
@@ -454,7 +454,7 @@ class GestureServer:
                 self.current_gesture_confidence = max(self.current_gesture_confidence, confidence)
             
             return {
-                'state': 'holding',  # ✅ HOLDING: Animation chaining in game
+                'state': 'holding',  # HOLDING: Animation chaining in game
                 'spell': spell_name,
                 'confidence': self.current_gesture_confidence,
                 'should_broadcast': True
@@ -476,7 +476,7 @@ class GestureServer:
             self.gesture_broadcast = False
             
             if should_broadcast:
-                print(f"[RELEASE] {gesture_being_released} after {held_time:.1f}s → cast")
+                print(f"[RELEASE] {gesture_being_released} after {held_time:.1f}s -> cast")
                 return {
                     'state': 'cast',
                     'spell': gesture_being_released,

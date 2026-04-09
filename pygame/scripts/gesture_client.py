@@ -191,7 +191,7 @@ class GestureClient:
         """Handle spell detection message from server."""
         spell_name = data.get('spell')
         confidence = data.get('confidence', 0)
-        state = data.get('state', 'cast')  # ✅ NEW: spell state (focus, holding, cast)
+        state = data.get('state', 'cast')  # NEW: spell state (focus, holding, cast)
         
         # Only log cast events (focus/holding logged by game loop)
         if state == 'cast':
@@ -206,7 +206,7 @@ class GestureClient:
             self.spell_queue.put_nowait({
                 'spell': spell_name,
                 'confidence': confidence,
-                'state': state,  # ✅ NEW: Include state for game to handle
+                'state': state,  # NEW: Include state for game to handle
                 'timestamp': data.get('timestamp', time.time())
             })
             self.stats['spells_queued'] += 1

@@ -1,5 +1,5 @@
 """
-Spell Bar UI — Bottom-center spell icon bar with frames, highlight, and unlock system.
+Spell Bar UI - Bottom-center spell icon bar with frames, highlight, and unlock system.
 
 Icons are loaded from ingame_assets/ui/spell_icon.
 Normal spells use Spell_Icon_Frame_Normal.png, crystal and phoenix use Spell_Icon_Frame_Special.png.
@@ -50,9 +50,9 @@ class SpellBar:
         # Per-spell highlight timer
         self.highlight_timers = [0.0] * len(SPELL_NAMES)
 
-        # Unlock system — shared kill counter
+        # Unlock system - shared kill counter
         self.shared_kills = 0
-        self._prev_alive = 0  # ✅ FIX: Initialize to avoid frame 1 kill count = 0
+        self._prev_alive = 0  # FIX: Initialize to avoid frame 1 kill count = 0
         self.unlock_values = {}
         spell_cfgs = STAT_CONFIG.get("spells", {})
         for name in SPELL_NAMES:
@@ -113,7 +113,7 @@ class SpellBar:
             name = SPELL_NAMES[spell_index]
             uv = self.unlock_values[name]
             if uv > 0:
-                print(f"[CONSUME] {name}: {self.shared_kills} → {max(0, self.shared_kills - uv)}")
+                print(f"[CONSUME] {name}: {self.shared_kills} -> {max(0, self.shared_kills - uv)}")
                 self.shared_kills = max(0, self.shared_kills - uv)
 
     def add_kills(self, count: int = 1):

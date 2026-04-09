@@ -65,12 +65,12 @@ class DisplayManager:
             cv2.moveWindow(self.debug_window, self.width + 20, 0)  # Top-right (offset by width + gap)
             
             self.windows_open = True
-            print(f"✓ Display windows created:")
+            print(f"[OK] Display windows created:")
             print(f"  [{self.gameplay_window}] at (0, 0) - {self.width}x{self.height}")
             print(f"  [{self.debug_window}] at ({self.width+20}, 0) - {self.width}x{self.height}")
             
         except Exception as e:
-            print(f"✗ Failed to create display windows: {e}")
+            print(f"[X] Failed to create display windows: {e}")
             self.windows_open = False
     
     def display_gameplay(self, frame):
@@ -97,7 +97,7 @@ class DisplayManager:
         """Close all windows."""
         cv2.destroyAllWindows()
         self.windows_open = False
-        print("✓ Display windows closed")
+        print("[OK] Display windows closed")
     
     @staticmethod
     def handle_keyboard():
@@ -155,12 +155,12 @@ class CameraManager:
             actual_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
             actual_fps = self.capture.get(cv2.CAP_PROP_FPS)
             
-            print(f"✓ Camera {self.camera_id} initialized:")
+            print(f"[OK] Camera {self.camera_id} initialized:")
             print(f"  Resolution: {actual_width}x{actual_height}")
             print(f"  FPS: {actual_fps:.1f}")
             
         except Exception as e:
-            print(f"✗ Camera initialization failed: {e}")
+            print(f"[X] Camera initialization failed: {e}")
             self.capture = None
     
     def read_frame(self):
@@ -186,7 +186,7 @@ class CameraManager:
         """Close camera and release resources."""
         if self.capture is not None:
             self.capture.release()
-            print(f"✓ Camera closed ({self.frame_count} frames captured)")
+            print(f"[OK] Camera closed ({self.frame_count} frames captured)")
     
     def is_open(self):
         """Check if camera is open and ready."""
@@ -234,7 +234,7 @@ class Application:
         self.display_manager = DisplayManager(WINDOW_WIDTH, WINDOW_HEIGHT)
         
         if not self.display_manager.windows_open:
-            print("✗ Failed to create display windows")
+            print("[X] Failed to create display windows")
             return False
         
         # 2. Initialize camera
@@ -242,23 +242,23 @@ class Application:
         self.camera_manager = CameraManager(camera_id=0, width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
         
         if not self.camera_manager.is_open():
-            print("✗ Failed to initialize camera")
+            print("[X] Failed to initialize camera")
             return False
         
         # 3. Initialize UI renderer
         print("\n[SETUP] Initializing UI renderer...")
         self.ui_renderer = UIRenderer(WINDOW_WIDTH, WINDOW_HEIGHT)
-        print(f"✓ UIRenderer ready ({WINDOW_WIDTH}x{WINDOW_HEIGHT})")
+        print(f"[OK] UIRenderer ready ({WINDOW_WIDTH}x{WINDOW_HEIGHT})")
         
         # 4. Initialize spell manager
         print("\n[SETUP] Initializing spell manager...")
         self.spell_manager = SpellManager(fps=TARGET_FPS, debug=self.debug)
-        print(f"✓ SpellManager ready (FPS: {TARGET_FPS})")
+        print(f"[OK] SpellManager ready (FPS: {TARGET_FPS})")
         
         # 5. Initialize AI engine
         print("\n[SETUP] Initializing AI gesture recognition...")
         self.ai_engine = GestureAI(model_path=None, debug=self.debug)
-        print(f"✓ GestureAI ready (Model: XGBoost, MediaPipe Hands)")
+        print(f"[OK] GestureAI ready (Model: XGBoost, MediaPipe Hands)")
         
         print("\n" + "="*70)
         print("SETUP COMPLETE - All systems initialized")
@@ -316,17 +316,17 @@ def main():
     
     # Setup all subsystems
     if not app.setup():
-        print("✗ Setup failed - exiting")
+        print("[X] Setup failed - exiting")
         app.cleanup()
         return 1
     
     # Verify all systems ready
     if not app.is_ready():
-        print("✗ Not all systems initialized - exiting")
+        print("[X] Not all systems initialized - exiting")
         app.cleanup()
         return 1
     
-    print("\n✓ Application ready to start - press 'q' to quit")
+    print("\n[OK] Application ready to start - press 'q' to quit")
     print("  Press 'd' to toggle debug mode")
     print("  Press 'space' to pause/resume\n")
     
@@ -341,7 +341,7 @@ def main():
         # 1. Capture frame from camera
         frame = app.get_camera_frame()
         if frame is None:
-            print("✗ Failed to capture frame - exiting")
+            print("[X] Failed to capture frame - exiting")
             break
         
         frame_count += 1
@@ -358,18 +358,18 @@ def main():
         
         # 5. Update hand tracking in spell manager (with validation)
         # Pass spell_name to validate 2-hand requirement
-        # If spell_name is None → reset CHANTING/ACTIVATED to IDLE
+        # If spell_name is None -> reset CHANTING/ACTIVATED to IDLE
         app.spell_manager.set_hand_held(hands_detected, spell_name)
         
         # 6. Handle spell state transitions
         if hands_detected and app.spell_manager.is_idle():
-            # Hand detected in IDLE state → start chanting
+            # Hand detected in IDLE state -> start chanting
             app.spell_manager.start_chanting()
             if app.debug:
                 print(f"[Frame {frame_count}] Gesture detected - starting chant")
         
         elif not hands_detected and app.spell_manager.is_chanting():
-            # Hand lost during chanting → cancel chanting
+            # Hand lost during chanting -> cancel chanting
             app.spell_manager.cancel_chanting()
             if app.debug:
                 print(f"[Frame {frame_count}] Gesture lost - cancelled chanting")
@@ -377,16 +377,16 @@ def main():
         # 7. Check for automatic spell execution event (hand released during ACTIVATED)
         if app.spell_manager.has_event(SpellEvent.EXECUTE_SPELL):
             if spell_name and app.spell_manager.execute_spell(spell_name, confidence):
-                print(f"[Frame {frame_count}] ⚡ SPELL EXECUTED: {spell_name} ({confidence*100:.1f}%)")
+                print(f"[Frame {frame_count}] [!] SPELL EXECUTED: {spell_name} ({confidence*100:.1f}%)")
                 print(f"                   MP: {app.spell_manager.current_mp}/{app.spell_manager.max_mp}")
             else:
                 if app.spell_manager.current_mp < app.spell_manager.mp_cost_per_spell:
-                    print(f"[Frame {frame_count}] ✗ Insufficient mana (need {app.spell_manager.mp_cost_per_spell}, "
+                    print(f"[Frame {frame_count}] [X] Insufficient mana (need {app.spell_manager.mp_cost_per_spell}, "
                           f"have {app.spell_manager.current_mp})")
         
         # 8. Check for cooldown completion
         if app.spell_manager.has_event(SpellEvent.COOLDOWN_END):
-            print(f"[Frame {frame_count}] ✓ Cooldown complete - ready to cast")
+            print(f"[Frame {frame_count}] [OK] Cooldown complete - ready to cast")
         
         # Debug logging every 30 frames
         if app.debug and frame_count % 30 == 0:
@@ -428,7 +428,7 @@ def main():
         elif app.spell_manager.is_executing():
             game_frame = app.ui_renderer.draw_gesture_hint(
                 game_frame,
-                f"⚡ {app.spell_manager.current_spell_name}",
+                f"[!] {app.spell_manager.current_spell_name}",
                 position="top-center"
             )
         
@@ -539,7 +539,7 @@ def main():
         key = DisplayManager.handle_keyboard()
         
         if key == ord('q') or key == 27:  # 'q' or ESC
-            print("✓ Quit signal received")
+            print("[OK] Quit signal received")
             app.running = False
         
         elif key == ord('d'):  # 'd' for debug toggle
@@ -560,7 +560,7 @@ def main():
     
     # Cleanup and exit
     app.cleanup()
-    print("\n✓ Application terminated successfully")
+    print("\n[OK] Application terminated successfully")
     return 0
 
 
@@ -569,10 +569,10 @@ if __name__ == "__main__":
         exit_code = main()
         sys.exit(exit_code)
     except KeyboardInterrupt:
-        print("\n\n✗ Interrupted by user (Ctrl+C)")
+        print("\n\n[X] Interrupted by user (Ctrl+C)")
         sys.exit(1)
     except Exception as e:
-        print(f"\n✗ Fatal error: {e}")
+        print(f"\n[X] Fatal error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
