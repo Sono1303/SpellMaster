@@ -140,11 +140,10 @@ class GestureServer:
             self.socket.sendto(message.encode(), (self.client_host, self.client_port))
             
             if state == "focus":
-                print(f"[FOCUS] {spell_name} ({confidence:.1f}%) - Detected!")
-            elif state == "holding":
-                print(f"[HOLDING] {spell_name}: {int(round(confidence * 100))}%", end='\r')  # Compact log
+                print(f"[FOCUS] {spell_name} ({confidence:.1f}%)")
             elif state == "cast":
-                print(f"[CAST] {spell_name} ({confidence:.1f}%) - Spell cast!")
+                print(f"[CAST] {spell_name} ({confidence:.1f}%)")
+            # holding state: no log (too frequent)
             
             return True
         
@@ -233,9 +232,9 @@ class GestureServer:
         distance_x = abs(center1_x - center2_x)
         distance_y = abs(center1_y - center2_y)
         
-        # Hands are close if distance between centers < average box size * 1.1
+        # Hands are close if distance between centers < average box size * 1.3
         # This means the boxes are touching or nearly touching (allows edge-near detection)
-        hands_touch = (distance_x < avg_size_x * 1.1) and (distance_y < avg_size_y * 1.1)
+        hands_touch = (distance_x < avg_size_x * 1.3) and (distance_y < avg_size_y * 1.3)
         
         return hands_touch
     
@@ -452,13 +451,7 @@ class GestureServer:
             
             # SAME GESTURE BEING HELD: Return "holding" state
             if not self.gesture_broadcast and self.gesture_hold_start_time is not None:
-                self.current_gesture_confidence = confidence  # Update confidence
-                held_time = current_time - self.gesture_hold_start_time
-                
-                # Show progress, but less verbose for real-time updates
-                if int(held_time * 10) % 3 == 0:  # Every ~0.3s
-                    progress = min(100, int(held_time / self.gesture_hold_duration * 100))
-                    print(f"[HOLD] {spell_name}: {held_time:.1f}s / {self.gesture_hold_duration}s [{progress}%]")
+                self.current_gesture_confidence = max(self.current_gesture_confidence, confidence)
             
             return {
                 'state': 'holding',  # ✅ HOLDING: Animation chaining in game
@@ -483,15 +476,14 @@ class GestureServer:
             self.gesture_broadcast = False
             
             if should_broadcast:
-                print(f"\n[HOLD] {gesture_being_released} released after {held_time:.2f}s")
+                print(f"[RELEASE] {gesture_being_released} after {held_time:.1f}s → cast")
                 return {
-                    'state': 'cast',  # ✅ CAST: Spell trigger on release
+                    'state': 'cast',
                     'spell': gesture_being_released,
                     'confidence': confidence_being_released,
                     'should_broadcast': True
                 }
             else:
-                print(f"\n[HOLD] {gesture_being_released} released after {held_time:.2f}s (too short, ignored)")
                 return {
                     'state': None,
                     'spell': None,
@@ -530,12 +522,10 @@ class GestureServer:
         print("="*70 + "\n")
     
     def print_fps(self):
-        """Update and display FPS counter."""
+        """Update FPS counter (stored for display, not printed)."""
         self.fps_counter += 1
         
         if time.time() - self.fps_timer >= 1.0:
-            fps = self.fps_counter
-            print(f"[FPS] {fps}", end='\r')
             self.fps_counter = 0
             self.fps_timer = time.time()
     
@@ -628,8 +618,6 @@ class GestureServer:
                                 self.stats['spells_detected'] += 1
                                 self.stats['last_spell'] = spell_to_send
                                 self.stats['last_confidence'] = confidence_to_send
-                            
-                            print(f"   -> Sent to {self.client_host}:{self.client_port}")
                 
                 except Exception as e:
                     print(f"[X] Error in main loop iteration: {type(e).__name__}: {e}")

@@ -108,7 +108,7 @@ class LandmarkOneEuroFilter:
     """
 
     def __init__(self, num_landmarks: int = 21, freq: float = 30.0,
-                 min_cutoff: float = 1.0, beta: float = 0.007, d_cutoff: float = 1.0):
+                 min_cutoff: float = 0.05, beta: float = 0.005, d_cutoff: float = 1.0):
         self._filters_x = [OneEuroFilter(freq, min_cutoff, beta, d_cutoff) for _ in range(num_landmarks)]
         self._filters_y = [OneEuroFilter(freq, min_cutoff, beta, d_cutoff) for _ in range(num_landmarks)]
         self._num = num_landmarks

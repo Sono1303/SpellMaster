@@ -64,8 +64,8 @@ class SpellRecognizer:
         self.confidence_threshold = 0.85  # 85% confidence threshold
         
         # One Euro Filter for stable landmark tracking (replaces EMA)
-        # min_cutoff=1.0: smooth when still | beta=0.007: responsive on fast movement
-        self._landmark_filters = {}  # hand_id -> LandmarkOneEuroFilter
+        # min_cutoff=0.05: heavy smoothing when still | beta=0.005: responsive on fast movement
+        self._landmark_filters = {}  # hand_label -> LandmarkOneEuroFilter
         self.previous_hand_count = 0
         self.skipped_frames = 0
         
@@ -111,19 +111,21 @@ class SpellRecognizer:
         
         return False
     
-    def apply_smooth_filter(self, landmarks_list, hand_id):
+    def apply_smooth_filter(self, landmarks_list, hand_label):
         """Apply One Euro Filter for jitter-free landmark tracking.
         
-        Replaces old EMA smoothing. One Euro adapts cutoff frequency based on
-        movement speed: heavy smoothing when still, minimal lag when moving fast.
+        Uses hand_label ('Left'/'Right') as key to avoid filter mix-up when
+        MediaPipe swaps hand indices between frames.
+        One Euro adapts cutoff frequency based on movement speed:
+        heavy smoothing when still, minimal lag when moving fast.
         """
-        if hand_id not in self._landmark_filters:
-            self._landmark_filters[hand_id] = LandmarkOneEuroFilter(
-                num_landmarks=21, freq=30.0, min_cutoff=1.0, beta=0.007, d_cutoff=1.0
+        if hand_label not in self._landmark_filters:
+            self._landmark_filters[hand_label] = LandmarkOneEuroFilter(
+                num_landmarks=21, freq=30.0, min_cutoff=0.05, beta=0.005, d_cutoff=1.0
             )
         
         t = time.monotonic()
-        return self._landmark_filters[hand_id](landmarks_list, t)
+        return self._landmark_filters[hand_label](landmarks_list, t)
     
     def process_frame_data(self, results, hand_count):
         """
@@ -164,7 +166,7 @@ class SpellRecognizer:
             if hand_label == "Left":
                 has_left_hand = True
                 landmarks = self.extract_hand_landmarks(hand_landmarks)
-                landmarks = self.apply_smooth_filter(landmarks, hand_idx)
+                landmarks = self.apply_smooth_filter(landmarks, "Left")
                 
                 left_wrist_x, left_wrist_y = landmarks[0]
                 
@@ -193,7 +195,7 @@ class SpellRecognizer:
             if hand_label == "Right":
                 has_right_hand = True
                 landmarks = self.extract_hand_landmarks(hand_landmarks)
-                landmarks = self.apply_smooth_filter(landmarks, hand_idx)
+                landmarks = self.apply_smooth_filter(landmarks, "Right")
                 
                 # Check if left hand was found before processing right hand
                 if left_wrist_x is None or left_palm_size is None:

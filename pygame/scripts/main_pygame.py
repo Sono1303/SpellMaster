@@ -406,12 +406,11 @@ def _update_start_gesture_hold(dt: float):
             
             # Progress indicator at milestones (20, 40, 60, etc frames)
             if START_GESTURE_FRAME_COUNT % 15 == 0 and START_GESTURE_FRAME_COUNT <= 60:
-                progress_pct = min(100, int((START_GESTURE_FRAME_COUNT / 60.0) * 100))
-                print(f"[HOLD] {gesture_name}: {GESTURE_START_HOLD_TIME:.1f}s / 1.0s [{progress_pct}%]")
+                pass  # Silent progress tracking
         else:
             # Gesture stopped - reset counter if it was building up
             if START_GESTURE_FRAME_COUNT > 0 and START_GESTURE_FRAME_COUNT < 60:
-                print(f"[HOLD] Interrupted at {START_GESTURE_FRAME_COUNT} frames")
+                pass  # Silent reset
                 START_GESTURE_FRAME_COUNT = 0
                 GESTURE_START_HOLD_TIME = 0.0
 
@@ -427,7 +426,7 @@ def process_gesture_spells():
     """
     global GESTURE_CLIENT, PLAYER, SPELL_MANAGER, SPELL_BAR, MONSTERS
     global GAME_STARTED, WAITING_FOR_START_GESTURE, WAITING_FOR_RESTART_GESTURE, GAME_OVER
-    global STATUE
+    global STATUE, VICTORY, VICTORY_COUNTDOWN, VICTORY_COUNTDOWN_ACTIVE, VICTORY_SHOW_RESTART
     
     if not GESTURE_CLIENT or not PLAYER or not SPELL_MANAGER:
         return
@@ -512,20 +511,15 @@ def process_gesture_spells():
             spell_index = None
             for idx, (spell_key, spell_config) in enumerate(SPELL_MANAGER.spell_configs.items()):
                 config_name = spell_config.get('name', spell_key)
-                print(f"  [DEBUG] Checking index {idx}: key={spell_key}, name={config_name}")
-                
-                # Match by either spell_key or config name
                 if spell_key == spell_type or config_name == spell_type:
                     spell_index = idx
-                    print(f"  [DEBUG] ✓ Match found! spell_index={spell_index}")
                     break
             
             if spell_index is not None:
-                print(f"[FOCUS] Setting selected_spell_index to {spell_index}")
-                
-                # ✅ FIX: Check if spell is locked BEFORE selecting
+                # Check if spell is locked BEFORE selecting
                 if SPELL_BAR and SPELL_BAR.is_locked(spell_index):
-                    print(f"[FOCUS] ✗ {gesture_name} is LOCKED! Need {SPELL_BAR.unlock_values[gesture_name]} kills, have {SPELL_BAR.shared_kills}")
+                    required_kills = SPELL_BAR.unlock_values.get(spell_type, 0)
+                    print(f"[FOCUS] ✗ {gesture_name} LOCKED (need {required_kills} kills)")
                     SPELL_BAR.try_select(spell_index)  # Show warning
                     return
                 
@@ -538,10 +532,9 @@ def process_gesture_spells():
                     SPELL_BAR.selected_index = spell_index  # ✅ Update spell bar selection
                     SPELL_BAR.trigger_highlight(spell_index)
                 
-                print(f"[FOCUS] ✓ {gesture_name} selected! Index={spell_index}")
+                print(f"[FOCUS] ✓ {gesture_name} selected")
             else:
-                print(f"[FOCUS] ✗ Could not find spell index for '{spell_type}'")
-                print(f"[FOCUS] Available spells: {list(SPELL_MANAGER.spell_configs.keys())}")
+                print(f"[FOCUS] ✗ '{spell_type}' not found in spells")
             
             return
         
@@ -549,11 +542,10 @@ def process_gesture_spells():
         if spell_state == 'holding':
             # Check if this is the same spell as focused
             if PLAYER.selected_spell_index is not None:
-                # ✅ Only trigger animation if not already in CAST_SPELL state
+                # Only trigger animation if not already in CAST_SPELL state
                 if PLAYER.state != EntityState.CAST_SPELL:
-                    PLAYER.casting_stage = "casting"  # ✅ Prevent update() from overriding state
+                    PLAYER.casting_stage = "casting"
                     PLAYER.set_state(EntityState.CAST_SPELL, reset_frame=False)
-                    print(f"[HOLDING] {gesture_name} - Casting animation started")
                 
                 # Trigger animation/highlight while holding
                 if SPELL_BAR:
@@ -562,33 +554,35 @@ def process_gesture_spells():
         
         # ✅ CAST STATE: Actually cast the spell
         if spell_state == 'cast':
-            print(f"[CAST] {gesture_name} ({confidence:.1f}%) - Casting spell")
-            PLAYER.casting_stage = None  # ✅ Reset so update() manages state normally
+            PLAYER.casting_stage = None  # Reset so update() manages state normally
             
             if spell_type not in SPELL_MANAGER.spell_configs:
-                available_spells = list(SPELL_MANAGER.spell_configs.keys())
-                print(f"[ERROR] Spell '{spell_type}' not found in spell manager")
-                print(f"[ERROR] Available: {available_spells}")
+                print(f"[CAST] ✗ '{spell_type}' not in spell configs")
+                return
+            
+            # Verify spell is not locked before casting
+            if PLAYER.selected_spell_index is None or (SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index)):
+                required_kills = SPELL_BAR.unlock_values.get(spell_type, 0) if SPELL_BAR else 0
+                print(f"[CAST] ✗ {gesture_name} LOCKED (need {required_kills} kills)")
+                PLAYER.selected_spell_index = None
+                SPELL_MANAGER.selected_spell_index = None
                 return
             
             # Try to cast spell by name
             alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
-            print(f"[SPELL] Targets available: {len(alive)}")
             
             if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
-                print(f"[CAST] ✓ {gesture_name} ({confidence:.1f}%) - SPELL CAST!")
+                print(f"[CAST] ✓ {gesture_name} ({confidence:.1f}%)")
                 
-                # ✅ Consume kills for special spells + Reset spell selection to prevent continuous casting
+                # Consume kills for special spells + Reset spell selection
                 if SPELL_BAR and PLAYER.selected_spell_index is not None:
                     SPELL_BAR.consume_unlock(PLAYER.selected_spell_index)
                     SPELL_BAR.selected_index = None
                 
                 PLAYER.selected_spell_index = None
                 SPELL_MANAGER.selected_spell_index = None
-                
-                print(f"[CAST] Spell selection reset - Ready for next spell")
             else:
-                print(f"[CAST] ✗ {gesture_name} - Failed (no targets or error)")
+                print(f"[CAST] ✗ {gesture_name} - no targets")
 
 
 def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):

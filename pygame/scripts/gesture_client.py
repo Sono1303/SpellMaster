@@ -193,15 +193,9 @@ class GestureClient:
         confidence = data.get('confidence', 0)
         state = data.get('state', 'cast')  # ✅ NEW: spell state (focus, holding, cast)
         
-        # Log detection based on state
-        if state == 'focus':
-            print(f"\n[FOCUS] {spell_name} ({confidence:.1f}%) - Detected!")
-        elif state == 'holding':
-            # Compact log for real-time updates
-            progress = int(confidence * 100)
-            print(f"[HOLDING] {spell_name}: {progress}%", end='\r')
-        elif state == 'cast':
-            print(f"\n[CAST] {spell_name} ({confidence:.1f}%) - Spell trigger!")
+        # Only log cast events (focus/holding logged by game loop)
+        if state == 'cast':
+            print(f"[RECV] {spell_name} ({confidence:.1f}%) cast")
         
         self.stats['spells_received'] += 1
         self.stats['last_spell'] = spell_name
@@ -216,9 +210,6 @@ class GestureClient:
                 'timestamp': data.get('timestamp', time.time())
             })
             self.stats['spells_queued'] += 1
-            
-            if state == 'cast':
-                print(f"[QUEUED] {spell_name} added to spell queue")
         
         except queue.Full:
             print(f"[X] Spell queue full - dropping: {spell_name}")
