@@ -89,6 +89,12 @@ WAVE_COUNTDOWN_ACTIVE = False # True = showing countdown
 WAVE_ANNOUNCE_TIMER = 0.0     # timer for "Wave X" text display after spawn starts
 WAVE_ANNOUNCE_DURATION = 2.0  # how long to show "Wave X" after countdown ends
 
+# Victory state
+VICTORY = False                 # True when all waves cleared AND all monsters dead
+VICTORY_COUNTDOWN = 5.0         # 5s countdown before showing restart prompt
+VICTORY_COUNTDOWN_ACTIVE = False # True = counting down after victory
+VICTORY_SHOW_RESTART = False    # True = countdown finished, show restart gesture prompt
+
 # Gesture recognition spell mapping
 # Maps gesture names to actual spell names from stat_config.json
 GESTURE_TO_SPELL = {
@@ -312,6 +318,14 @@ def _update_wave_spawn(dt):
     global WAVE_COUNTDOWN, WAVE_COUNTDOWN_ACTIVE, WAVE_ANNOUNCE_TIMER
 
     if ALL_WAVES_DONE:
+        # Check if all monsters are dead for victory
+        global VICTORY, VICTORY_COUNTDOWN_ACTIVE
+        if not VICTORY:
+            alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+            if len(alive) == 0:
+                VICTORY = True
+                VICTORY_COUNTDOWN_ACTIVE = True
+                print("[VICTORY] All waves cleared! Victory countdown starting...")
         return
 
     normal_cfg = LEVEL_CONFIG.get("normal_mode", {})
@@ -436,12 +450,16 @@ def process_gesture_spells():
         return
     
     # === AFTER GAME OVER: Any spell (focus state) restarts the game ===
-    if GAME_OVER and WAITING_FOR_RESTART_GESTURE:
+    if (GAME_OVER or VICTORY_SHOW_RESTART) and WAITING_FOR_RESTART_GESTURE:
         if spell_state == 'focus':  # Only restart on initial focus
             print(f"\n[RESTART] {gesture_name} ({confidence:.1f}%) → Restarting game")
             GAME_OVER = False
             GAME_STARTED = True
             WAITING_FOR_RESTART_GESTURE = False
+            VICTORY = False
+            VICTORY_COUNTDOWN = 5.0
+            VICTORY_COUNTDOWN_ACTIVE = False
+            VICTORY_SHOW_RESTART = False
             
             # Clear monsters and reset game variables
             MONSTERS.clear()
@@ -504,13 +522,20 @@ def process_gesture_spells():
             
             if spell_index is not None:
                 print(f"[FOCUS] Setting selected_spell_index to {spell_index}")
+                
+                # ✅ FIX: Check if spell is locked BEFORE selecting
+                if SPELL_BAR and SPELL_BAR.is_locked(spell_index):
+                    print(f"[FOCUS] ✗ {gesture_name} is LOCKED! Need {SPELL_BAR.unlock_values[gesture_name]} kills, have {SPELL_BAR.shared_kills}")
+                    SPELL_BAR.try_select(spell_index)  # Show warning
+                    return
+                
+                # Spell is not locked, safe to select
                 PLAYER.selected_spell_index = spell_index
                 SPELL_MANAGER.selected_spell_index = spell_index  # ✅ Update spell manager too!
                 
                 # Trigger UI highlight
                 if SPELL_BAR:
                     SPELL_BAR.selected_index = spell_index  # ✅ Update spell bar selection
-                    SPELL_BAR.try_select(spell_index)
                     SPELL_BAR.trigger_highlight(spell_index)
                 
                 print(f"[FOCUS] ✓ {gesture_name} selected! Index={spell_index}")
@@ -551,9 +576,17 @@ def process_gesture_spells():
             print(f"[SPELL] Targets available: {len(alive)}")
             
             if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
-                if SPELL_BAR:
-                    SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
                 print(f"[CAST] ✓ {gesture_name} ({confidence:.1f}%) - SPELL CAST!")
+                
+                # ✅ Consume kills for special spells + Reset spell selection to prevent continuous casting
+                if SPELL_BAR and PLAYER.selected_spell_index is not None:
+                    SPELL_BAR.consume_unlock(PLAYER.selected_spell_index)
+                    SPELL_BAR.selected_index = None
+                
+                PLAYER.selected_spell_index = None
+                SPELL_MANAGER.selected_spell_index = None
+                
+                print(f"[CAST] Spell selection reset - Ready for next spell")
             else:
                 print(f"[CAST] ✗ {gesture_name} - Failed (no targets or error)")
 
@@ -568,6 +601,20 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
         process_gesture_spells()  # Any spell triggers game start
         return
     
+    # === VICTORY: Countdown then wait for restart gesture ===
+    global VICTORY, VICTORY_COUNTDOWN, VICTORY_COUNTDOWN_ACTIVE, VICTORY_SHOW_RESTART
+    if VICTORY:
+        if VICTORY_COUNTDOWN_ACTIVE:
+            VICTORY_COUNTDOWN -= dt
+            if VICTORY_COUNTDOWN <= 0:
+                VICTORY_COUNTDOWN_ACTIVE = False
+                VICTORY_SHOW_RESTART = True
+                WAITING_FOR_RESTART_GESTURE = True
+                print("[VICTORY] Countdown finished - waiting for restart gesture")
+        if VICTORY_SHOW_RESTART:
+            process_gesture_spells()  # Any spell triggers restart
+        return
+
     # === AFTER GAME OVER: Wait for gesture to restart ===
     if GAME_OVER:
         WAITING_FOR_RESTART_GESTURE = True
@@ -589,15 +636,15 @@ def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, d
 
     # Spell system
     if SPELL_MANAGER and PLAYER:
-        # Block selection of locked spells
-        if SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index):
+        # Block selection of locked spells (check for None first)
+        if SPELL_BAR and PLAYER.selected_spell_index is not None and SPELL_BAR.is_locked(PLAYER.selected_spell_index):
             SPELL_BAR.try_select(PLAYER.selected_spell_index)
             PLAYER.selected_spell_index = SPELL_MANAGER.selected_spell_index  # revert
         SPELL_MANAGER.selected_spell_index = PLAYER.selected_spell_index
 
         if PLAYER._spell_ready_to_fire:
             PLAYER._spell_ready_to_fire = False
-            if SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index):
+            if SPELL_BAR and PLAYER.selected_spell_index is not None and SPELL_BAR.is_locked(PLAYER.selected_spell_index):
                 SPELL_BAR.try_select(PLAYER.selected_spell_index)
             else:
                 alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
@@ -872,6 +919,49 @@ def _draw_gesture_start_banner(screen):
     screen.blit(sub_text, sr)
 
 
+def _draw_victory_screen(screen):
+    """Draw victory overlay with countdown or restart prompt."""
+    sw = screen.get_width()
+    sh = screen.get_height()
+    cx = sw // 2
+    cy = sh // 2
+
+    # Dark overlay
+    overlay = pygame.Surface(screen.get_size())
+    overlay.fill((0, 0, 0))
+    overlay.set_alpha(150)
+    screen.blit(overlay, (0, 0))
+
+    # VICTORY title
+    title_font = pygame.font.Font(None, 80)
+    title_text = title_font.render("VICTORY", True, (255, 215, 0))  # Gold color
+    title_rect = title_text.get_rect(center=(cx, cy - 80))
+    screen.blit(title_text, title_rect)
+
+    sub_font = pygame.font.Font(None, 36)
+    sub_text = sub_font.render("All waves cleared!", True, (200, 200, 200))
+    sub_rect = sub_text.get_rect(center=(cx, cy - 30))
+    screen.blit(sub_text, sub_rect)
+
+    if VICTORY_COUNTDOWN_ACTIVE and VICTORY_COUNTDOWN > 0:
+        # Show countdown
+        cd_font = pygame.font.Font(None, 48)
+        cd_text = cd_font.render(f"{int(VICTORY_COUNTDOWN) + 1}", True, (255, 255, 255))
+        cd_rect = cd_text.get_rect(center=(cx, cy + 30))
+        screen.blit(cd_text, cd_rect)
+    elif VICTORY_SHOW_RESTART:
+        # Show restart prompt
+        prompt_font = pygame.font.Font(None, 40)
+        prompt_text = prompt_font.render("Perform any spell gesture for 1s", True, (255, 100, 100))
+        prompt_rect = prompt_text.get_rect(center=(cx, cy + 30))
+        screen.blit(prompt_text, prompt_rect)
+
+        sub2_font = pygame.font.Font(None, 40)
+        sub2_text = sub2_font.render("to play again", True, (255, 100, 100))
+        sub2_rect = sub2_text.get_rect(center=(cx, cy + 70))
+        screen.blit(sub2_text, sub2_rect)
+
+
 def _draw_gesture_restart_banner(screen):
     """Draw red banner for restart gesture: 'Perform any spell gesture for 1s to play again'"""
     sw = screen.get_width()
@@ -915,6 +1005,15 @@ def render_frame(screen: pygame.Surface, tile_map: TileMap, resource_manager: Re
         pygame.display.flip()
         return
     
+    # === VICTORY: Show victory screen ===
+    if VICTORY:
+        screen.fill(BACKGROUND_COLOR)
+        if tile_map:
+            tile_map.render(screen, offset_x=0, offset_y=0)
+        _draw_victory_screen(screen)
+        pygame.display.flip()
+        return
+
     # === GAME OVER: Show restart gesture banner ===
     if GAME_OVER and WAITING_FOR_RESTART_GESTURE:
         screen.fill(BACKGROUND_COLOR)

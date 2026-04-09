@@ -52,6 +52,7 @@ class SpellBar:
 
         # Unlock system — shared kill counter
         self.shared_kills = 0
+        self._prev_alive = 0  # ✅ FIX: Initialize to avoid frame 1 kill count = 0
         self.unlock_values = {}
         spell_cfgs = STAT_CONFIG.get("spells", {})
         for name in SPELL_NAMES:
@@ -112,6 +113,7 @@ class SpellBar:
             name = SPELL_NAMES[spell_index]
             uv = self.unlock_values[name]
             if uv > 0:
+                print(f"[CONSUME] {name}: {self.shared_kills} → {max(0, self.shared_kills - uv)}")
                 self.shared_kills = max(0, self.shared_kills - uv)
 
     def add_kills(self, count: int = 1):

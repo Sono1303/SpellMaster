@@ -15,6 +15,8 @@ import warnings
 import sys
 import argparse
 
+from utils.one_euro_filter import LandmarkOneEuroFilter
+
 # Suppress warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 warnings.filterwarnings('ignore', category=UserWarning, module='google.protobuf')
@@ -61,9 +63,9 @@ class SpellRecognizer:
         # Configuration
         self.confidence_threshold = 0.85  # 85% confidence threshold
         
-        # Smoothing for stable predictions
-        self.smoothing_factor = 0.6
-        self.previous_landmarks = {}
+        # One Euro Filter for stable landmark tracking (replaces EMA)
+        # min_cutoff=1.0: smooth when still | beta=0.007: responsive on fast movement
+        self._landmark_filters = {}  # hand_id -> LandmarkOneEuroFilter
         self.previous_hand_count = 0
         self.skipped_frames = 0
         
@@ -109,33 +111,19 @@ class SpellRecognizer:
         
         return False
     
-    def apply_strong_smoothing(self, landmarks_list, hand_id):
-        """Apply smoothing using exponential moving average."""
-        landmarks_dict = {}
-        for i, (x, y) in enumerate(landmarks_list):
-            landmarks_dict[f"x{i}"] = x
-            landmarks_dict[f"y{i}"] = y
+    def apply_smooth_filter(self, landmarks_list, hand_id):
+        """Apply One Euro Filter for jitter-free landmark tracking.
         
-        if hand_id not in self.previous_landmarks:
-            self.previous_landmarks[hand_id] = landmarks_dict
-            return landmarks_list
+        Replaces old EMA smoothing. One Euro adapts cutoff frequency based on
+        movement speed: heavy smoothing when still, minimal lag when moving fast.
+        """
+        if hand_id not in self._landmark_filters:
+            self._landmark_filters[hand_id] = LandmarkOneEuroFilter(
+                num_landmarks=21, freq=30.0, min_cutoff=1.0, beta=0.007, d_cutoff=1.0
+            )
         
-        prev = self.previous_landmarks[hand_id]
-        smoothed_dict = {}
-        
-        alpha = self.smoothing_factor * 0.5
-        
-        for i, (x, y) in enumerate(landmarks_list):
-            smoothed_x = alpha * x + (1 - alpha) * prev.get(f"x{i}", x)
-            smoothed_y = alpha * y + (1 - alpha) * prev.get(f"y{i}", y)
-            
-            smoothed_dict[f"x{i}"] = smoothed_x
-            smoothed_dict[f"y{i}"] = smoothed_y
-        
-        self.previous_landmarks[hand_id] = smoothed_dict
-        
-        smoothed_list = [(smoothed_dict[f"x{i}"], smoothed_dict[f"y{i}"]) for i in range(len(landmarks_list))]
-        return smoothed_list
+        t = time.monotonic()
+        return self._landmark_filters[hand_id](landmarks_list, t)
     
     def process_frame_data(self, results, hand_count):
         """
@@ -176,7 +164,7 @@ class SpellRecognizer:
             if hand_label == "Left":
                 has_left_hand = True
                 landmarks = self.extract_hand_landmarks(hand_landmarks)
-                landmarks = self.apply_strong_smoothing(landmarks, hand_idx)
+                landmarks = self.apply_smooth_filter(landmarks, hand_idx)
                 
                 left_wrist_x, left_wrist_y = landmarks[0]
                 
@@ -205,7 +193,7 @@ class SpellRecognizer:
             if hand_label == "Right":
                 has_right_hand = True
                 landmarks = self.extract_hand_landmarks(hand_landmarks)
-                landmarks = self.apply_strong_smoothing(landmarks, hand_idx)
+                landmarks = self.apply_smooth_filter(landmarks, hand_idx)
                 
                 # Check if left hand was found before processing right hand
                 if left_wrist_x is None or left_palm_size is None:

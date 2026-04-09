@@ -179,9 +179,133 @@ class GestureServer:
             print(f"[X] Error broadcasting status: {e}")
             return False
     
+    def get_hand_bounding_box(self, hand_landmarks) -> Tuple[float, float, float, float]:
+        """
+        Get normalized bounding box of hand from landmarks.
+        
+        Args:
+            hand_landmarks: MediaPipe hand landmarks
+            
+        Returns:
+            (min_x, min_y, max_x, max_y) - normalized coordinates (0-1)
+        """
+        xs = [lm.x for lm in hand_landmarks.landmark]
+        ys = [lm.y for lm in hand_landmarks.landmark]
+        return min(xs), min(ys), max(xs), max(ys)
+    
+    def hands_are_close(self, hand_landmarks_list) -> bool:
+        """
+        Check if 2 hands are very close to each other (bounding boxes actually touch/overlap).
+        Gesture is only detected when hands are together.
+        
+        Args:
+            hand_landmarks_list: List of hand landmarks
+            
+        Returns:
+            True if hands are very close (almost overlapping), False otherwise
+        """
+        if len(hand_landmarks_list) < 2:
+            return False  # Not enough hands
+        
+        # Get bounding boxes for each hand
+        box1 = self.get_hand_bounding_box(hand_landmarks_list[0])
+        box2 = self.get_hand_bounding_box(hand_landmarks_list[1])
+        
+        x1_min, y1_min, x1_max, y1_max = box1
+        x2_min, y2_min, x2_max, y2_max = box2
+        
+        # Calculate center and size of each bounding box
+        center1_x = (x1_min + x1_max) / 2
+        center1_y = (y1_min + y1_max) / 2
+        size1_x = x1_max - x1_min
+        size1_y = y1_max - y1_min
+        
+        center2_x = (x2_min + x2_max) / 2
+        center2_y = (y2_min + y2_max) / 2
+        size2_x = x2_max - x2_min
+        size2_y = y2_max - y2_min
+        
+        # Calculate average box size
+        avg_size_x = (size1_x + size2_x) / 2
+        avg_size_y = (size1_y + size2_y) / 2
+        
+        # Distance between centers
+        distance_x = abs(center1_x - center2_x)
+        distance_y = abs(center1_y - center2_y)
+        
+        # Hands are close if distance between centers < average box size * 1.1
+        # This means the boxes are touching or nearly touching (allows edge-near detection)
+        hands_touch = (distance_x < avg_size_x * 1.1) and (distance_y < avg_size_y * 1.1)
+        
+        return hands_touch
+    
+    def draw_hand_bounding_boxes(self, frame, hand_landmarks_list, frame_width: int, frame_height: int, hands_close: bool = False) -> None:
+        """
+        Draw bounding boxes for detected hands on the frame.
+        When hands are close together, draws 1 merged bounding box.
+        Otherwise draws separate boxes for each hand.
+        
+        Args:
+            frame: OpenCV frame to draw on
+            hand_landmarks_list: List of hand landmarks
+            frame_width: Frame width in pixels
+            frame_height: Frame height in pixels
+            hands_close: If True, hands are close - merge into 1 box
+        """
+        if not hand_landmarks_list:
+            return
+        
+        if hands_close and len(hand_landmarks_list) >= 2:
+            # ✅ NEW: Merge 2 hands into 1 bounding box
+            all_xs = []
+            all_ys = []
+            for hand_landmarks in hand_landmarks_list:
+                xs = [lm.x for lm in hand_landmarks.landmark]
+                ys = [lm.y for lm in hand_landmarks.landmark]
+                all_xs.extend(xs)
+                all_ys.extend(ys)
+            
+            min_x, max_x = min(all_xs), max(all_xs)
+            min_y, max_y = min(all_ys), max(all_ys)
+            
+            # Convert to pixel coords
+            x_min = int(min_x * frame_width)
+            y_min = int(min_y * frame_height)
+            x_max = int(max_x * frame_width)
+            y_max = int(max_y * frame_height)
+            
+            # Draw merged bounding box (cyan color)
+            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (255, 255, 0), 3)  # Cyan, thick
+            cv2.putText(frame, "DUAL-HAND GESTURE", (x_min, y_min - 5),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        else:
+            # Draw separate boxes for each hand
+            colors = [(0, 255, 0), (255, 0, 0)]  # Green for hand 1, Red for hand 2
+            
+            for idx, hand_landmarks in enumerate(hand_landmarks_list):
+                # Get bounding box
+                min_x, min_y, max_x, max_y = self.get_hand_bounding_box(hand_landmarks)
+                
+                # Convert normalized coords to pixel coords
+                x_min = int(min_x * frame_width)
+                y_min = int(min_y * frame_height)
+                x_max = int(max_x * frame_width)
+                y_max = int(max_y * frame_height)
+                
+                # Draw rectangle
+                color = colors[idx % len(colors)]
+                thickness = 2
+                cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), color, thickness)
+                
+                # Draw label
+                hand_label = f"Hand {idx + 1}"
+                cv2.putText(frame, hand_label, (x_min, y_min - 5),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    
     def detect_gesture(self, draw_frame=False) -> Tuple[Optional[str], float, Optional[np.ndarray]]:
         """
         Capture and process one frame, detect gesture.
+        Only recognizes gesture when BOTH hands are detected and close together.
         
         Args:
             draw_frame: If True, return annotated frame with landmarks
@@ -221,19 +345,28 @@ class GestureServer:
             # Process hand landmarks if detected
             if results.multi_hand_landmarks:
                 hand_count = len(results.multi_hand_landmarks)
+                hands_close = hand_count >= 2 and self.hands_are_close(results.multi_hand_landmarks)
                 
                 # Draw landmarks on frame if requested
                 if draw_frame:
                     self.recognizer.draw_landmarks(frame, results)
+                    # ✅ Draw bounding boxes with merge when hands are close
+                    self.draw_hand_bounding_boxes(frame, results.multi_hand_landmarks, w, h, hands_close=hands_close)
                 
-                # Extract and normalize hand data
-                feature_vector = self.recognizer.process_frame_data(results, hand_count)
-                
-                if feature_vector is not None:
-                    # Predict gesture from feature vector (updated method name)
-                    gesture_name, confidence = self.recognizer.predict_gesture(feature_vector)
-                    # Debug output (uncomment to see predictions)
-                    # print(f"[DETECT] hands={hand_count}, gesture={gesture_name}, conf={confidence:.1f}%")
+                # Only detect gesture when BOTH hands are present and close together
+                if hands_close:
+                    # Extract and normalize hand data
+                    feature_vector = self.recognizer.process_frame_data(results, hand_count)
+                    
+                    if feature_vector is not None:
+                        # Predict gesture from feature vector
+                        gesture_name, confidence = self.recognizer.predict_gesture(feature_vector)
+                elif hand_count < 2 and draw_frame:
+                    # Show info: waiting for 2 hands
+                    cv2.putText(frame, f"Hands detected: {hand_count}/2", (50, 50),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
+                    cv2.putText(frame, "Bring 2 hands together to detect spell", (50, 100),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 100, 255), 1)
             
             # Draw info on frame if requested
             if draw_frame:

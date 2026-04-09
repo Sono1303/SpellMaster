@@ -138,8 +138,17 @@ class GestureClient:
         
         while self.running:
             try:
+                # Check if socket is still valid before receiving
+                if not self.running or self.socket is None:
+                    break
+                
                 # Receive message from gesture server
                 message, addr = self.socket.recvfrom(4096)
+                
+                # Check if should stop (might have been set during recvfrom)
+                if not self.running:
+                    break
+                
                 self.stats['server_host'] = addr[0]
                 
                 # Parse JSON payload
@@ -155,6 +164,16 @@ class GestureClient:
             except socket.timeout:
                 # Timeout is normal when no data is being received
                 continue
+            
+            except (OSError, socket.error) as e:
+                # Socket closed or other socket error (WinError 10038)
+                if self.running:
+                    logger.error(f"Socket error (still running): {e}")
+                    self.stats['connection_errors'] += 1
+                    time.sleep(0.1)
+                else:
+                    # Socket closed intentionally
+                    break
             
             except json.JSONDecodeError as e:
                 logger.warning(f"Invalid JSON received: {e}")
