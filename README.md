@@ -256,7 +256,6 @@ Gesture State Machine (focus → holding → cast)
 UDP Broadcast → Game (port 6666)
 ```
 
-### One Euro Filter
 
 Bộ lọc thích ứng giúp giảm nhiễu landmark từ MediaPipe mà vẫn giữ được phản hồi nhanh khi cử chỉ thay đổi:
 
@@ -323,7 +322,11 @@ Server gửi JSON payload qua UDP broadcast:
 | HP tối đa | 200 |
 | Vị trí | Cố định trên bản đồ |
 
+
+<img width="79.5" height="141" alt="image" src="https://github.com/user-attachments/assets/ebf26c01-f315-4cfd-944b-786eab85e7e8" />
+
 Khi HP tượng đài hoặc HP người chơi về 0 → **Game Over**.
+
 
 ---
 
