@@ -50,6 +50,22 @@ class SpellBar:
         # Per-spell highlight timer
         self.highlight_timers = [0.0] * len(SPELL_NAMES)
 
+        # Cast progress overlay (blue fading overlay during holding)
+        self.cast_progress = 0.0        # 0.0 to 1.0
+        self.casting_index = None       # Which spell is being cast
+
+        # Cast-complete pulse animation
+        self.pulse_index = None         # Which spell just finished charging
+        self.pulse_timer = 0.0          # Timer for pulse animation
+        self.pulse_duration = 2.0       # How long the pulse lasts
+        self.pulse_speed = 0.7          # Oscillation speed (Hz) — lower = slower pulses
+
+        # Selected index (set externally)
+        self.selected_index = None
+
+        # Per-spell highlight timer
+        self.highlight_timers = [0.0] * len(SPELL_NAMES)
+
         # Unlock system - shared kill counter
         self.shared_kills = 0
         self._prev_alive = 0  # FIX: Initialize to avoid frame 1 kill count = 0
@@ -123,12 +139,36 @@ class SpellBar:
         if 0 <= spell_index < len(self.highlight_timers):
             self.highlight_timers[spell_index] = self.highlight_duration
 
+    def set_cast_progress(self, spell_index: int, progress: float):
+        """Set casting progress (0.0 to 1.0) for blue overlay."""
+        self.casting_index = spell_index
+        self.cast_progress = max(0.0, min(1.0, progress))
+
+    def clear_cast_progress(self):
+        """Clear casting overlay."""
+        self.casting_index = None
+        self.cast_progress = 0.0
+
+    def trigger_cast_complete_pulse(self, spell_index: int):
+        """Start pulse animation to signal cast is done."""
+        self.pulse_index = spell_index
+        self.pulse_timer = self.pulse_duration
+
+    def clear_pulse(self):
+        """Stop pulse animation."""
+        self.pulse_index = None
+        self.pulse_timer = 0.0
+
     def update(self, dt: float):
         for i in range(len(self.highlight_timers)):
             if self.highlight_timers[i] > 0:
                 self.highlight_timers[i] = max(0.0, self.highlight_timers[i] - dt)
         if self._warn_timer > 0:
             self._warn_timer = max(0.0, self._warn_timer - dt)
+        if self.pulse_timer > 0:
+            self.pulse_timer = max(0.0, self.pulse_timer - dt)
+            if self.pulse_timer <= 0:
+                self.pulse_index = None
 
     def _lock_progress(self, name: str) -> float:
         """Returns 0.0 (fully locked) to 1.0 (unlocked). Always 1.0 for unlocked_value=0."""
@@ -160,8 +200,19 @@ class SpellBar:
             is_selected = (i == selected_index)
             cast_highlight = self.highlight_timers[i] > 0
             progress = self._lock_progress(name)
+            is_pulsing = (i == self.pulse_index and self.pulse_timer > 0)
 
-            if is_selected or cast_highlight:
+            # Pulse scale: oscillates between 1.0 and highlight_scale
+            if is_pulsing:
+                import math
+                t = self.pulse_duration - self.pulse_timer
+                pulse_factor = 1.0 + (self.highlight_scale - 1.0) * 0.5 * (1.0 + math.sin(t * self.pulse_speed * 2 * math.pi))
+                cur_icon_sz = int(icon_sz * pulse_factor)
+                cur_frame_sz = int(frame_sz * pulse_factor)
+                cur_slot = int(slot * pulse_factor)
+                icon = pygame.transform.smoothscale(self.icons[name], (cur_icon_sz, cur_icon_sz))
+                frame = pygame.transform.smoothscale(self.frames[name], (cur_frame_sz, cur_frame_sz))
+            elif is_selected or cast_highlight:
                 cur_icon_sz = int(icon_sz * self.highlight_scale)
                 cur_frame_sz = int(frame_sz * self.highlight_scale)
                 cur_slot = int(slot * self.highlight_scale)
@@ -192,6 +243,17 @@ class SpellBar:
                     overlay.fill((0, 0, 0))
                     overlay.set_alpha(160)
                     surface.blit(overlay, (icon_x, icon_y))
+
+            # Draw blue casting progress overlay (fades from bottom to top as cast progresses)
+            if i == self.casting_index and self.cast_progress > 0:
+                remaining = 1.0 - self.cast_progress
+                cast_overlay_h = int(cur_icon_sz * remaining)
+                if cast_overlay_h > 0:
+                    cast_overlay = pygame.Surface((cur_icon_sz, cast_overlay_h))
+                    cast_overlay.fill((100, 160, 255))
+                    cast_overlay.set_alpha(int(120 * remaining))
+                    cast_overlay_y = icon_y + (cur_icon_sz - cast_overlay_h)
+                    surface.blit(cast_overlay, (icon_x, cast_overlay_y))
 
             # Draw frame on top (never covered by overlay)
             surface.blit(frame, (frame_x, frame_y))

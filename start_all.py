@@ -1,26 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SpellMaster - Unified Gesture Recognition Launcher
-Single entry point that launches:
-  1. Gesture Recognition Server (UDP broadcaster)
-  2. Hand Detection Display (with webcam and hand landmarks)
-  3. Pygame Game (connected to gesture recognition)
+SpellMaster - Unified Launcher
 
 Usage:
-    python start_all.py              # Start all components
+    python start_all.py              # Start game + server + camera display
+    python start_all.py --no-camera  # Start game + server, no hand-sign window
     python start_all.py --help       # Show help
-    python start_all.py --game-only  # Start only game
-    python start_all.py --server-only # Start only server
 """
 
 import os
 import sys
 import subprocess
-import threading
 import time
 import argparse
-import cv2
 from pathlib import Path
 
 # Add paths for imports
@@ -80,15 +73,18 @@ def verify_files():
     
     return all_ok
 
-def start_gesture_server() -> subprocess.Popen:
+def start_gesture_server(no_display=False) -> subprocess.Popen:
     """Start gesture recognition server in background"""
     print_info("Starting Gesture Recognition Server...")
     
+    cmd = [sys.executable, 'gesture_server.py']
+    if no_display:
+        cmd.append('--no-display')
+    
     try:
         process = subprocess.Popen(
-            [sys.executable, 'gesture_server.py'],
+            cmd,
             cwd=str(AI_CONTROLLER_DIR)
-            # stdout/stderr inherit from parent (visible in console)
         )
         
         time.sleep(2)
@@ -105,7 +101,6 @@ def start_gesture_server() -> subprocess.Popen:
         return None
 
 def start_pygame_game() -> subprocess.Popen:
-    """Start pygame game in background"""
     print_info("Starting Pygame Game...")
     
     try:
@@ -128,104 +123,20 @@ def start_pygame_game() -> subprocess.Popen:
         print_error(f"Error starting Pygame Game: {e}")
         return None
 
-def start_hand_recognition_display():
-    """Display hand recognition in OpenCV window with error handling"""
-    print_info("Starting Hand Recognition Display...")
-    
-    def recognition_loop():
-        try:
-            from spell_recognizer import SpellRecognizer
-            
-            # Initialize with graceful camera failure handling
-            try:
-                recognizer = SpellRecognizer(skip_camera=False)
-                if not recognizer.camera_available or recognizer.cap is None:
-                    print_error("Camera not available - skipping hand recognition display")
-                    return
-            except Exception as e:
-                print_error(f"Failed to initialize recognizer: {e}")
-                print_info("Continuing without hand recognition display...")
-                return
-            
-            print_success("Hand Recognition window active (Press 'Q' to quit)")
-            
-            while True:
-                try:
-                    if recognizer.cap is None:
-                        break
-                    
-                    ret, frame = recognizer.cap.read()
-                    if not ret:
-                        break
-                    
-                    # Flip for mirror effect
-                    frame = cv2.flip(frame, 1)
-                    
-                    # Process hand detection
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    results = recognizer.hands.process(frame_rgb)
-                    
-                    # Draw hand landmarks
-                    if results.multi_hand_landmarks:
-                        recognizer.draw_landmarks(frame, results)
-                    
-                    # Display frame
-                    cv2.imshow("Hand Recognition - Ignite: Spell Master", frame)
-                    
-                    # Check if window closed or Q pressed
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord('q') or key == ord('Q'):
-                        break
-                    
-                    if cv2.getWindowProperty("Hand Recognition - Ignite: Spell Master", cv2.WND_PROP_VISIBLE) < 1:
-                        break
-                
-                except Exception as e:
-                    print_error(f"Error in recognition loop: {e}")
-                    break
-            
-            # Cleanup
-            try:
-                if recognizer.cap is not None:
-                    recognizer.cap.release()
-                cv2.destroyAllWindows()
-                recognizer.hands.close()
-                print_info("Hand Recognition Display closed")
-            except:
-                pass
-        
-        except Exception as e:
-            print_error(f"Fatal error in hand recognition: {type(e).__name__}: {e}")
-    
-    thread = threading.Thread(target=recognition_loop, daemon=True)
-    thread.start()
-    return thread
-
 def main():
     """Main launcher"""
     parser = argparse.ArgumentParser(
-        description='SpellMaster - Unified Gesture Recognition',
+        description='SpellMaster - Unified Gesture Recognition Launcher',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-EXAMPLES:
-  python start_all.py              # Start server + game (NO separate hand display)
-                                    # Hand display runs inside gesture server
-  
-  python start_all.py --server-only # Start only gesture server
-  
-  python start_all.py --game-only # Start only game
-  
-  python start_all.py --hand-display # Start server + game + separate hand display
-                                    # (NOT recommended - camera conflict!)
-
-NOTE: By default, hand landmarks are displayed inside the gesture server window.
-      Only use --hand-display if you want a separate hand recognition window.
+MODES:
+  (default)        Start game + server + webcam hand-sign window
+  --no-camera      Start game + server only, no hand-sign window
         """
     )
     
-    parser.add_argument('--server-only', action='store_true', help='Start only server')
-    parser.add_argument('--game-only', action='store_true', help='Start only game')
-    parser.add_argument('--hand-display', action='store_true', help='Start separate hand display (experimental)')
+    parser.add_argument('--no-camera', action='store_true',
+                        help='Disable the webcam hand-sign display window')
     
     args = parser.parse_args()
     
@@ -237,38 +148,26 @@ NOTE: By default, hand landmarks are displayed inside the gesture server window.
     
     server_process = None
     game_process = None
-    hand_thread = None
     
     try:
-        # Start Gesture Server
-        if not args.game_only:
-            print_info("\n" + "="*80)
-            print_info("STEP 1: GESTURE RECOGNITION SERVER")
-            print_info("="*80)
-            server_process = start_gesture_server()
-            if not server_process:
-                sys.exit(1)
+        # Step 1: Gesture Server
+        print_info("\n" + "="*80)
+        print_info("STEP 1: GESTURE RECOGNITION SERVER")
+        print_info("="*80)
+        server_process = start_gesture_server(
+            no_display=args.no_camera
+        )
+        if not server_process:
+            sys.exit(1)
         
-        # Start Pygame Game
-        if not args.server_only:
-            print_info("\n" + "="*80)
-            print_info("STEP 2: PYGAME GAME")
-            print_info("="*80)
-            game_process = start_pygame_game()
-            if not game_process:
-                sys.exit(1)
+        # Step 2: Pygame Game
+        print_info("\n" + "="*80)
+        print_info("STEP 2: PYGAME GAME")
+        print_info("="*80)
+        game_process = start_pygame_game()
+        if not game_process:
+            sys.exit(1)
         
-        # Start Hand Recognition Display (OPTIONAL - separate from server)
-        # By default, gesture_server displays hand recognition internally
-        # Only start separate hand display if explicitly requested
-        if args.hand_display and not args.server_only:
-            print_info("\n" + "="*80)
-            print_info("STEP 3: SEPARATE HAND RECOGNITION DISPLAY (EXPERIMENTAL)")
-            print_info("="*80)
-            print_info("Note: This may cause camera conflicts with gesture server!")
-            hand_thread = start_hand_recognition_display()
-        
-        # Print summary
         print("\n" + "="*80)
         print(f"{Colors.GREEN}{Colors.BOLD}SPELLMASTER STARTED{Colors.RESET}")
         print("="*80)
@@ -276,23 +175,19 @@ NOTE: By default, hand landmarks are displayed inside the gesture server window.
         
         if server_process:
             status = "[+] Running" if server_process.poll() is None else "[X] Failed"
-            print(f"  * Gesture Recognition Server{Colors.RESET:.<35} {status}")
+            cam_note = " (no display)" if args.no_camera else ""
+            print(f"  * Gesture Server{cam_note:.<45} {status}")
         
         if game_process:
             status = "[+] Running" if game_process.poll() is None else "[X] Failed"
             print(f"  * Pygame Game{Colors.RESET:.<45} {status}")
         
-        if hand_thread and hand_thread.is_alive():
-            print(f"  * Hand Recognition Display{Colors.RESET:.<32} [+] Running")
-        
         print("\n" + "="*80)
         print(f"{Colors.CYAN}How to use:{Colors.RESET}")
         print("  1. Make hand gestures in front of webcam")
-        print("  2. See hand landmarks in Hand Recognition window")
+        if not args.no_camera:
+            print("  2. Watch hand landmarks in the Gesture Server window")
         print("  3. Detected spells are cast in the game")
-        print("\nWindows:")
-        print("  * Hand Recognition - Shows webcam with hand landmarks")
-        print("  * Pygame Game - Game window for spell casting")
         print("\n" + "="*80)
         print_info("Press Ctrl+C to stop all components...")
         print("="*80 + "\n")

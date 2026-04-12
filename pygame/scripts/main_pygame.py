@@ -30,6 +30,7 @@ from player_ui import PlayerUI
 from spell_bar import SpellBar
 from gesture_client import GestureClient
 import json
+import time
 
 MONSTER_TYPES = list(STAT_CONFIG["monsters"].keys())
 
@@ -111,6 +112,8 @@ GESTURE_TO_SPELL = {
 }
 GESTURE_SPELL_COOLDOWN = 0.0
 GESTURE_SPELL_COOLDOWN_TIME = 0.5  # Minimum 0.5s between gesture spells
+CAST_HOLD_START_TIME = None  # Track when holding started for cast progress overlay
+GESTURE_POST_CAST_COOLDOWN_END = 0.0  # Timestamp until which new gestures are ignored after cast/cancel
 
 # ============================================================================
 # WINDOW CONFIGURATION (Dynamic from map)
@@ -427,162 +430,209 @@ def process_gesture_spells():
     global GESTURE_CLIENT, PLAYER, SPELL_MANAGER, SPELL_BAR, MONSTERS
     global GAME_STARTED, WAITING_FOR_START_GESTURE, WAITING_FOR_RESTART_GESTURE, GAME_OVER
     global STATUE, VICTORY, VICTORY_COUNTDOWN, VICTORY_COUNTDOWN_ACTIVE, VICTORY_SHOW_RESTART
+    global CAST_HOLD_START_TIME, GESTURE_POST_CAST_COOLDOWN_END
     
     if not GESTURE_CLIENT or not PLAYER or not SPELL_MANAGER:
         return
     
-    spell_event = GESTURE_CLIENT.get_next_spell()
-    
-    if not spell_event:
-        return
-    
-    gesture_name = spell_event.get('spell')
-    confidence = spell_event.get('confidence', 0)
-    spell_state = spell_event.get('state', 'cast')  # NEW: spell state
-    
-    # === BEFORE GAME START: Any spell (focus state) starts the game ===
-    if not GAME_STARTED and WAITING_FOR_START_GESTURE:
-        if spell_state == 'focus':  # Only start on initial focus
-            print(f"\n[START] {gesture_name} ({confidence:.1f}%) -> Starting game")
-            GAME_STARTED = True
-            WAITING_FOR_START_GESTURE = False
-        return
-    
-    # === AFTER GAME OVER: Any spell (focus state) restarts the game ===
-    if (GAME_OVER or VICTORY_SHOW_RESTART) and WAITING_FOR_RESTART_GESTURE:
-        if spell_state == 'focus':  # Only restart on initial focus
-            print(f"\n[RESTART] {gesture_name} ({confidence:.1f}%) -> Restarting game")
-            GAME_OVER = False
-            GAME_STARTED = True
-            WAITING_FOR_RESTART_GESTURE = False
-            VICTORY = False
-            VICTORY_COUNTDOWN = 5.0
-            VICTORY_COUNTDOWN_ACTIVE = False
-            VICTORY_SHOW_RESTART = False
-            
-            # Clear monsters and reset game variables
-            MONSTERS.clear()
-            
-            # Reset player health and mana
-            if PLAYER:
-                PLAYER.health = PLAYER.max_health
-                PLAYER.mana = PLAYER.max_mana
-            
-            # Reset statue health
-            if STATUE:
-                STATUE.health = STATUE.max_health
-                STATUE.display_health = float(STATUE.max_health)
-            
-            # RESET WAVE SYSTEM to start from Wave 1
-            global CURRENT_WAVE, WAVE_MONSTERS_LEFT, WAVE_SPAWN_TIMER, WAVE_CLEAR_TIMER
-            global WAVE_WAITING, WAVE_COUNTDOWN, WAVE_COUNTDOWN_ACTIVE, ALL_WAVES_DONE
-            global WAVE_ANNOUNCE_TIMER
-            
-            CURRENT_WAVE = 0
-            WAVE_MONSTERS_LEFT = []
-            WAVE_SPAWN_TIMER = 0.0
-            WAVE_CLEAR_TIMER = 0.0
-            WAVE_WAITING = False
-            WAVE_COUNTDOWN = 0.0
-            WAVE_COUNTDOWN_ACTIVE = False
-            WAVE_ANNOUNCE_TIMER = 0.0
-            ALL_WAVES_DONE = False
-            
-            # RESET KILL COUNTER
-            if SPELL_BAR:
-                SPELL_BAR.shared_kills = 0
-                SPELL_BAR._prev_alive = 0
+    # Drain ALL queued events this frame so holding-event backlog cannot
+    # delay recognition of the next gesture.
+    while True:
+        spell_event = GESTURE_CLIENT.get_next_spell()
+        if not spell_event:
+            break
         
-        return
-    
-    # === DURING GAME: Handle focus/holding/cast states ===
-    if GAME_STARTED and not GAME_OVER:
-        if gesture_name not in GESTURE_TO_SPELL:
-            print(f"[ERROR] {gesture_name} not in gesture mapping")
-            return
+        gesture_name = spell_event.get('spell')
+        confidence = spell_event.get('confidence', 0)
+        spell_state = spell_event.get('state', 'cast')  # focus/holding/cast/cancel
         
-        spell_type = GESTURE_TO_SPELL[gesture_name]
+        # === BEFORE GAME START: Any spell (focus state) starts the game ===
+        if not GAME_STARTED and WAITING_FOR_START_GESTURE:
+            if spell_state == 'focus':  # Only start on initial focus
+                print(f"\n[START] {gesture_name} ({confidence:.1f}%) -> Starting game")
+                GAME_STARTED = True
+                WAITING_FOR_START_GESTURE = False
+            continue
         
-        # FOCUS STATE: Select and focus the spell
-        if spell_state == 'focus':
-            print(f"[FOCUS] {gesture_name} -> Select & Focus spell (searching for: {spell_type})")
-            
-            # Find spell index by matching spell type name
-            spell_index = None
-            for idx, (spell_key, spell_config) in enumerate(SPELL_MANAGER.spell_configs.items()):
-                config_name = spell_config.get('name', spell_key)
-                if spell_key == spell_type or config_name == spell_type:
-                    spell_index = idx
-                    break
-            
-            if spell_index is not None:
-                # Check if spell is locked BEFORE selecting
-                if SPELL_BAR and SPELL_BAR.is_locked(spell_index):
-                    required_kills = SPELL_BAR.unlock_values.get(spell_type, 0)
-                    print(f"[FOCUS] [X] {gesture_name} LOCKED (need {required_kills} kills)")
-                    SPELL_BAR.try_select(spell_index)  # Show warning
-                    return
+        # === AFTER GAME OVER: Any spell (focus state) restarts the game ===
+        if (GAME_OVER or VICTORY_SHOW_RESTART) and WAITING_FOR_RESTART_GESTURE:
+            if spell_state == 'focus':  # Only restart on initial focus
+                print(f"\n[RESTART] {gesture_name} ({confidence:.1f}%) -> Restarting game")
+                GAME_OVER = False
+                GAME_STARTED = True
+                WAITING_FOR_RESTART_GESTURE = False
+                VICTORY = False
+                VICTORY_COUNTDOWN = 5.0
+                VICTORY_COUNTDOWN_ACTIVE = False
+                VICTORY_SHOW_RESTART = False
                 
-                # Spell is not locked, safe to select
-                PLAYER.selected_spell_index = spell_index
-                SPELL_MANAGER.selected_spell_index = spell_index  # Update spell manager too!
+                # Clear monsters and reset game variables
+                MONSTERS.clear()
                 
-                # Trigger UI highlight
+                # Reset player health and mana
+                if PLAYER:
+                    PLAYER.health = PLAYER.max_health
+                    PLAYER.mana = PLAYER.max_mana
+                
+                # Reset statue health
+                if STATUE:
+                    STATUE.health = STATUE.max_health
+                    STATUE.display_health = float(STATUE.max_health)
+                
+                # RESET WAVE SYSTEM to start from Wave 1
+                global CURRENT_WAVE, WAVE_MONSTERS_LEFT, WAVE_SPAWN_TIMER, WAVE_CLEAR_TIMER
+                global WAVE_WAITING, WAVE_COUNTDOWN, WAVE_COUNTDOWN_ACTIVE, ALL_WAVES_DONE
+                global WAVE_ANNOUNCE_TIMER
+                
+                CURRENT_WAVE = 0
+                WAVE_MONSTERS_LEFT = []
+                WAVE_SPAWN_TIMER = 0.0
+                WAVE_CLEAR_TIMER = 0.0
+                WAVE_WAITING = False
+                WAVE_COUNTDOWN = 0.0
+                WAVE_COUNTDOWN_ACTIVE = False
+                WAVE_ANNOUNCE_TIMER = 0.0
+                ALL_WAVES_DONE = False
+                
+                # RESET KILL COUNTER
                 if SPELL_BAR:
-                    SPELL_BAR.selected_index = spell_index  # Update spell bar selection
-                    SPELL_BAR.trigger_highlight(spell_index)
-                
-                print(f"[FOCUS] [OK] {gesture_name} selected")
-            else:
-                print(f"[FOCUS] [X] '{spell_type}' not found in spells")
+                    SPELL_BAR.shared_kills = 0
+                    SPELL_BAR._prev_alive = 0
             
-            return
+            continue
         
-        # HOLDING STATE: Show chaining animation
-        if spell_state == 'holding':
-            # Check if this is the same spell as focused
-            if PLAYER.selected_spell_index is not None:
-                # Only trigger animation if not already in CAST_SPELL state
-                if PLAYER.state != EntityState.CAST_SPELL:
-                    PLAYER.casting_stage = "casting"
-                    PLAYER.set_state(EntityState.CAST_SPELL, reset_frame=False)
-                
-                # Trigger animation/highlight while holding
+        # === DURING GAME: Handle focus/holding/cast/cancel states ===
+        if GAME_STARTED and not GAME_OVER:
+            # Skip focus/holding during post-cast cooldown to prevent re-detecting the last gesture
+            if spell_state in ('focus', 'holding') and time.time() < GESTURE_POST_CAST_COOLDOWN_END:
+                continue
+            
+            # CANCEL STATE: Gesture released too early, reset player casting
+            if spell_state == 'cancel':
+                if PLAYER.casting_stage is not None:
+                    PLAYER.casting_stage = None
+                    PLAYER.set_state(EntityState.IDLE, reset_frame=True)
                 if SPELL_BAR:
-                    SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
-            return
-        
-        # CAST STATE: Actually cast the spell
-        if spell_state == 'cast':
-            PLAYER.casting_stage = None  # Reset so update() manages state normally
-            
-            if spell_type not in SPELL_MANAGER.spell_configs:
-                print(f"[CAST] [X] '{spell_type}' not in spell configs")
-                return
-            
-            # Verify spell is not locked before casting
-            if PLAYER.selected_spell_index is None or (SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index)):
-                required_kills = SPELL_BAR.unlock_values.get(spell_type, 0) if SPELL_BAR else 0
-                print(f"[CAST] [X] {gesture_name} LOCKED (need {required_kills} kills)")
-                PLAYER.selected_spell_index = None
-                SPELL_MANAGER.selected_spell_index = None
-                return
-            
-            # Try to cast spell by name
-            alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
-            
-            if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
-                print(f"[CAST] [OK] {gesture_name} ({confidence:.1f}%)")
-                
-                # Consume kills for special spells + Reset spell selection
-                if SPELL_BAR and PLAYER.selected_spell_index is not None:
-                    SPELL_BAR.consume_unlock(PLAYER.selected_spell_index)
+                    SPELL_BAR.highlight_timers = [0.0] * len(SPELL_BAR.highlight_timers)
                     SPELL_BAR.selected_index = None
-                
+                    SPELL_BAR.clear_cast_progress()
+                    SPELL_BAR.clear_pulse()
                 PLAYER.selected_spell_index = None
                 SPELL_MANAGER.selected_spell_index = None
-            else:
-                print(f"[CAST] [X] {gesture_name} - no targets")
+                CAST_HOLD_START_TIME = None
+                GESTURE_POST_CAST_COOLDOWN_END = time.time() + 0.2
+                continue
+            
+            if gesture_name not in GESTURE_TO_SPELL:
+                print(f"[ERROR] {gesture_name} not in gesture mapping")
+                continue
+            
+            spell_type = GESTURE_TO_SPELL[gesture_name]
+            
+            # FOCUS STATE: Select and focus the spell
+            if spell_state == 'focus':
+                print(f"[FOCUS] {gesture_name} -> Select & Focus spell (searching for: {spell_type})")
+                
+                # Find spell index by matching spell type name
+                spell_index = None
+                for idx, (spell_key, spell_config) in enumerate(SPELL_MANAGER.spell_configs.items()):
+                    config_name = spell_config.get('name', spell_key)
+                    if spell_key == spell_type or config_name == spell_type:
+                        spell_index = idx
+                        break
+                
+                if spell_index is not None:
+                    # Check if spell is locked BEFORE selecting
+                    if SPELL_BAR and SPELL_BAR.is_locked(spell_index):
+                        required_kills = SPELL_BAR.unlock_values.get(spell_type, 0)
+                        print(f"[FOCUS] [X] {gesture_name} LOCKED (need {required_kills} kills)")
+                        SPELL_BAR.try_select(spell_index)  # Show warning
+                        continue
+                    
+                    # Spell is not locked, safe to select
+                    PLAYER.selected_spell_index = spell_index
+                    SPELL_MANAGER.selected_spell_index = spell_index
+                    
+                    # Reset ALL UI state from the previous spell so nothing lingers visually
+                    if SPELL_BAR:
+                        SPELL_BAR.highlight_timers = [0.0] * len(SPELL_BAR.highlight_timers)
+                        SPELL_BAR.clear_cast_progress()
+                        SPELL_BAR.clear_pulse()
+                        SPELL_BAR.selected_index = spell_index
+                        SPELL_BAR.trigger_highlight(spell_index)
+                    
+                    print(f"[FOCUS] [OK] {gesture_name} selected")
+                    CAST_HOLD_START_TIME = time.time()
+                    if SPELL_BAR:
+                        SPELL_BAR.set_cast_progress(spell_index, 0.0)
+                else:
+                    print(f"[FOCUS] [X] '{spell_type}' not found in spells")
+                
+                continue
+            
+            # HOLDING STATE: Show chaining animation
+            if spell_state == 'holding':
+                if PLAYER.selected_spell_index is not None:
+                    # Only trigger animation if not already in CAST_SPELL state
+                    if PLAYER.state != EntityState.CAST_SPELL:
+                        PLAYER.casting_stage = "casting"
+                        PLAYER.set_state(EntityState.CAST_SPELL, reset_frame=False)
+                    
+                    # Update cast progress overlay and trigger pulse when charge is full
+                    if SPELL_BAR and CAST_HOLD_START_TIME is not None:
+                        elapsed = time.time() - CAST_HOLD_START_TIME
+                        progress = min(1.0, elapsed / 1.0)  # 1s hold time
+                        SPELL_BAR.set_cast_progress(PLAYER.selected_spell_index, progress)
+                        
+                        # Pulse fires once when charge completes (progress just hit 1.0)
+                        if progress >= 1.0 and SPELL_BAR.pulse_index != PLAYER.selected_spell_index:
+                            SPELL_BAR.trigger_cast_complete_pulse(PLAYER.selected_spell_index)
+                    
+                    # Trigger animation/highlight while holding
+                    if SPELL_BAR:
+                        SPELL_BAR.trigger_highlight(PLAYER.selected_spell_index)
+                continue
+            
+            # CAST STATE: Actually cast the spell
+            if spell_state == 'cast':
+                PLAYER.casting_stage = None  # Reset so update() manages state normally
+                CAST_HOLD_START_TIME = None
+                GESTURE_POST_CAST_COOLDOWN_END = time.time() + 0.4
+                if SPELL_BAR:
+                    SPELL_BAR.clear_cast_progress()
+                    SPELL_BAR.clear_pulse()
+                
+                if spell_type not in SPELL_MANAGER.spell_configs:
+                    print(f"[CAST] [X] '{spell_type}' not in spell configs")
+                    continue
+                
+                # Verify spell is not locked before casting
+                if PLAYER.selected_spell_index is None or (SPELL_BAR and SPELL_BAR.is_locked(PLAYER.selected_spell_index)):
+                    required_kills = SPELL_BAR.unlock_values.get(spell_type, 0) if SPELL_BAR else 0
+                    print(f"[CAST] [X] {gesture_name} LOCKED (need {required_kills} kills)")
+                    PLAYER.selected_spell_index = None
+                    SPELL_MANAGER.selected_spell_index = None
+                    continue
+                
+                # Try to cast spell by name
+                alive = [m for m in MONSTERS if m is not None and m.is_alive() and not m._dying]
+                
+                if alive and SPELL_MANAGER.cast_by_name(spell_type, PLAYER, alive):
+                    print(f"[CAST] [OK] {gesture_name} ({confidence:.1f}%)")
+                    
+                    # Consume kills for special spells + Reset spell selection
+                    if SPELL_BAR and PLAYER.selected_spell_index is not None:
+                        SPELL_BAR.consume_unlock(PLAYER.selected_spell_index)
+                        SPELL_BAR.selected_index = None
+                    
+                    PLAYER.selected_spell_index = None
+                    SPELL_MANAGER.selected_spell_index = None
+                else:
+                    print(f"[CAST] [X] {gesture_name} - no targets")
+                    PLAYER.selected_spell_index = None
+                    SPELL_MANAGER.selected_spell_index = None
+                
+                continue
 
 
 def update_game_state(dt: float, tile_map=None, debug_collision: bool = False, decorations: list = None):

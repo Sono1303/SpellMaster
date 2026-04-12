@@ -15,8 +15,6 @@ import warnings
 import sys
 import argparse
 
-from utils.one_euro_filter import LandmarkOneEuroFilter
-
 # Suppress warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 warnings.filterwarnings('ignore', category=UserWarning, module='google.protobuf')
@@ -32,7 +30,6 @@ class SpellRecognizer:
             model_path: Path to ML model
             skip_camera: If True, don't initialize camera (testing mode)
         """
-        
         # MediaPipe initialization
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
@@ -61,11 +58,8 @@ class SpellRecognizer:
             raise
         
         # Configuration
-        self.confidence_threshold = 0.85  # 85% confidence threshold
+        self.confidence_threshold = 0.90  # 90% confidence threshold
         
-        # One Euro Filter for stable landmark tracking (replaces EMA)
-        # min_cutoff=0.05: heavy smoothing when still | beta=0.005: responsive on fast movement
-        self._landmark_filters = {}  # hand_label -> LandmarkOneEuroFilter
         self.previous_hand_count = 0
         self.skipped_frames = 0
         
@@ -99,33 +93,15 @@ class SpellRecognizer:
         for lm in hand_landmarks.landmark:
             landmarks.append((lm.x, lm.y))
         return landmarks
-    
+
     def is_hand_count_stable(self, current_hand_count, threshold=2):
         """Check if hand count is stable."""
         if self.previous_hand_count == 0:
             return True
-        
         if current_hand_count == self.previous_hand_count:
             self.previous_hand_count = current_hand_count
             return True
-        
         return False
-    
-    def apply_smooth_filter(self, landmarks_list, hand_label):
-        """Apply One Euro Filter for jitter-free landmark tracking.
-        
-        Uses hand_label ('Left'/'Right') as key to avoid filter mix-up when
-        MediaPipe swaps hand indices between frames.
-        One Euro adapts cutoff frequency based on movement speed:
-        heavy smoothing when still, minimal lag when moving fast.
-        """
-        if hand_label not in self._landmark_filters:
-            self._landmark_filters[hand_label] = LandmarkOneEuroFilter(
-                num_landmarks=21, freq=30.0, min_cutoff=0.05, beta=0.005, d_cutoff=1.0
-            )
-        
-        t = time.monotonic()
-        return self._landmark_filters[hand_label](landmarks_list, t)
     
     def process_frame_data(self, results, hand_count):
         """
@@ -166,7 +142,6 @@ class SpellRecognizer:
             if hand_label == "Left":
                 has_left_hand = True
                 landmarks = self.extract_hand_landmarks(hand_landmarks)
-                landmarks = self.apply_smooth_filter(landmarks, "Left")
                 
                 left_wrist_x, left_wrist_y = landmarks[0]
                 
@@ -195,7 +170,6 @@ class SpellRecognizer:
             if hand_label == "Right":
                 has_right_hand = True
                 landmarks = self.extract_hand_landmarks(hand_landmarks)
-                landmarks = self.apply_smooth_filter(landmarks, "Right")
                 
                 # Check if left hand was found before processing right hand
                 if left_wrist_x is None or left_palm_size is None:

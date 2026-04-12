@@ -43,7 +43,8 @@ class GestureServer:
         recognizer: SpellRecognizer instance
     """
     
-    def __init__(self, host='localhost', port=5555, client_host='localhost', client_port=6666):
+    def __init__(self, host='localhost', port=5555, client_host='localhost', client_port=6666,
+                 no_display=False):
         """
         Initialize gesture server.
         
@@ -52,11 +53,13 @@ class GestureServer:
             port: Server listen port
             client_host: Game client address
             client_port: Game client port
+            no_display: If True, don't show webcam window
         """
         self.host = host
         self.port = port
         self.client_host = client_host
         self.client_port = client_port
+        self.no_display = no_display
         
         # Initialize UDP socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -484,11 +487,12 @@ class GestureServer:
                     'should_broadcast': True
                 }
             else:
+                print(f"[CANCEL] {gesture_being_released} released too early ({held_time:.1f}s)")
                 return {
-                    'state': None,
-                    'spell': None,
+                    'state': 'cancel',
+                    'spell': gesture_being_released,
                     'confidence': 0,
-                    'should_broadcast': False
+                    'should_broadcast': True
                 }
         
         return {
@@ -547,12 +551,15 @@ class GestureServer:
         
         # Create display window
         window_name = "Gesture Server - Hand Recognition"
-        try:
-            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(window_name, 1280, 720)
-            print(f"[+] Display window created: {window_name}")
-        except Exception as e:
-            print(f"[!] Warning: Could not create display window: {e}")
+        if not self.no_display:
+            try:
+                cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+                cv2.resizeWindow(window_name, 1280, 720)
+                print(f"[+] Display window created: {window_name}")
+            except Exception as e:
+                print(f"[!] Warning: Could not create display window: {e}")
+        else:
+            print("[*] Display window disabled (--no-display)")
         
         # Send ready status to client
         self.broadcast_status('ready', {
@@ -573,32 +580,33 @@ class GestureServer:
                     
                     # Display frame if available (should always be available now with placeholder)
                     if frame is not None:
-                        try:
-                            # Display the frame
-                            cv2.imshow(window_name, frame)
-                            
-                            # Check for key press (non-blocking, 1ms timeout)
-                            key = cv2.waitKey(1) & 0xFF
-                            
-                            # Handle quit commands
-                            if key == ord('q') or key == ord('Q') or key == 27:  # 27 = ESC
-                                print("\n[*] Quit command received. Shutting down...")
-                                break
-                            
-                            # Check if window was closed by user
+                        if not self.no_display:
                             try:
-                                if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
-                                    print("\n[*] Display window closed. Shutting down...")
-                                    window_alive = False
+                                # Display the frame
+                                cv2.imshow(window_name, frame)
+                                
+                                # Check for key press (non-blocking, 1ms timeout)
+                                key = cv2.waitKey(1) & 0xFF
+                                
+                                # Handle quit commands
+                                if key == ord('q') or key == ord('Q') or key == 27:  # 27 = ESC
+                                    print("\n[*] Quit command received. Shutting down...")
                                     break
-                            except (cv2.error, Exception):
-                                # Window doesn't exist anymore
-                                pass
-                        
-                        except Exception as e:
-                            print(f"[!] Error displaying frame: {type(e).__name__}: {e}")
-                            # Continue even if display fails
-                            time.sleep(0.001)
+                                
+                                # Check if window was closed by user
+                                try:
+                                    if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+                                        print("\n[*] Display window closed. Shutting down...")
+                                        window_alive = False
+                                        break
+                                except (cv2.error, Exception):
+                                    # Window doesn't exist anymore
+                                    pass
+                            
+                            except Exception as e:
+                                print(f"[!] Error displaying frame: {type(e).__name__}: {e}")
+                                # Continue even if display fails
+                                time.sleep(0.001)
                     
                     # Update gesture holding system - returns {state, spell, confidence, should_broadcast}
                     gesture_update = self.update_gesture_hold(spell_name, confidence if spell_name else 0)
@@ -715,14 +723,24 @@ def main():
         help='Game client port (default: 6666)'
     )
     
+    parser.add_argument(
+        '--no-display',
+        action='store_true',
+        help='Disable webcam display window (headless mode)'
+    )
+    
     args = parser.parse_args()
+    
+    if args.no_display:
+        print("[*] Running in headless mode (no display window)")
     
     # Create and run server
     server = GestureServer(
         host=args.host,
         port=args.port,
         client_host=args.client_host,
-        client_port=args.client_port
+        client_port=args.client_port,
+        no_display=args.no_display
     )
     
     try:
