@@ -6,7 +6,7 @@ import random
 
 # Load data
 # data_file = Path(__file__).parent / "final_train.csv"
-data_file = "ai_controller/data/compare/normalize_data/Crystal/normalized_1.csv"
+data_file = Path("E:/SpellMaster/ai_controller/data/compare/normalize_data/Crystal/raw_1.csv")
 
 print("[+] Loading data...")
 df = pd.read_csv(data_file)
@@ -64,8 +64,13 @@ skeleton_connections = [
 # Create figure with single large subplot
 fig, ax = plt.subplots(1, 1, figsize=(12, 12))
 
-ax.set_xlim(-1, 3)
-ax.set_ylim(-1, 2)
+# Auto-scale axes to fit actual data (works for both raw and normalized)
+all_x = np.concatenate([left_hand[:, 0], right_hand[:, 0]])
+all_y = np.concatenate([left_hand[:, 1], right_hand[:, 1]])
+margin_x = max((all_x.max() - all_x.min()) * 0.20, 0.05)
+margin_y = max((all_y.max() - all_y.min()) * 0.20, 0.05)
+ax.set_xlim(all_x.min() - margin_x, all_x.max() + margin_x)
+ax.set_ylim(all_y.min() - margin_y, all_y.max() + margin_y)
 ax.set_aspect('equal')
 ax.invert_yaxis()
 ax.grid(True, alpha=0.4, linestyle='--', linewidth=0.5)
@@ -94,14 +99,16 @@ for connection in skeleton_connections:
            color='#0066FF', linewidth=3, alpha=0.7, zorder=2)
 
 # Add landmark indices for reference
+# Use proportional offset so labels stay close to their points regardless of data scale
+label_offset = (all_y.max() - all_y.min()) * 0.04
 for i in range(21):
     # Left hand labels
-    ax.text(left_hand[i, 0], left_hand[i, 1] - 0.08, str(i), 
+    ax.text(left_hand[i, 0], left_hand[i, 1] - label_offset, str(i), 
            fontsize=8, ha='center', color='#FF0000', fontweight='bold',
            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='#FF0000'))
     
     # Right hand labels
-    ax.text(right_hand[i, 0], right_hand[i, 1] + 0.08, str(i), 
+    ax.text(right_hand[i, 0], right_hand[i, 1] + label_offset, str(i), 
            fontsize=8, ha='center', color='#0066FF', fontweight='bold',
            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='#0066FF'))
 

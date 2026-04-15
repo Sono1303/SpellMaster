@@ -112,6 +112,11 @@ class GestureServer:
         self.gesture_broadcast = False            # Flag: should broadcast after hold
         self.gesture_to_broadcast = None          # Gesture name to broadcast on release
         self.gesture_to_broadcast_confidence = 0.0  # Confidence to broadcast on release
+
+        # Gesture change tolerance — ignore brief mispredictions during hold
+        self.gesture_change_tolerance = 0.2       # Seconds a different gesture must persist before switching
+        self.gesture_change_candidate = None      # Candidate gesture for takeover
+        self.gesture_change_start_time = None     # When candidate was first seen
         
         # Running state
         self.running = True
@@ -436,29 +441,63 @@ class GestureServer:
         
         # === GESTURE DETECTED ===
         if spell_name is not None:
-            # NEW GESTURE: Return "focus" state
-            if spell_name != self.current_gesture_name:
-                # Start holding new gesture
+            if spell_name == self.current_gesture_name:
+                # SAME GESTURE BEING HELD — reset tolerance candidate, update confidence
+                self.gesture_change_candidate = None
+                self.gesture_change_start_time = None
+                if not self.gesture_broadcast and self.gesture_hold_start_time is not None:
+                    self.current_gesture_confidence = max(self.current_gesture_confidence, confidence)
+                return {
+                    'state': 'holding',
+                    'spell': self.current_gesture_name,
+                    'confidence': self.current_gesture_confidence,
+                    'should_broadcast': True
+                }
+
+            # DIFFERENT GESTURE DETECTED
+            if self.current_gesture_name is None:
+                # No gesture was held: accept immediately as new focus
                 self.current_gesture_name = spell_name
                 self.current_gesture_confidence = confidence
                 self.gesture_hold_start_time = current_time
                 self.gesture_broadcast = False
                 self.gesture_to_broadcast = None
-                
+                self.gesture_change_candidate = None
+                self.gesture_change_start_time = None
                 return {
-                    'state': 'focus',  # NEW: Focus state for instant spell selection
+                    'state': 'focus',
                     'spell': spell_name,
                     'confidence': confidence,
                     'should_broadcast': True
                 }
-            
-            # SAME GESTURE BEING HELD: Return "holding" state
+
+            # A gesture is currently held but a different one appeared — use tolerance window
+            if self.gesture_change_candidate != spell_name:
+                # New candidate, start timing
+                self.gesture_change_candidate = spell_name
+                self.gesture_change_start_time = current_time
+            elif current_time - self.gesture_change_start_time >= self.gesture_change_tolerance:
+                # Candidate persisted long enough → accept as new focus, reset hold
+                self.current_gesture_name = spell_name
+                self.current_gesture_confidence = confidence
+                self.gesture_hold_start_time = current_time
+                self.gesture_broadcast = False
+                self.gesture_to_broadcast = None
+                self.gesture_change_candidate = None
+                self.gesture_change_start_time = None
+                return {
+                    'state': 'focus',
+                    'spell': spell_name,
+                    'confidence': confidence,
+                    'should_broadcast': True
+                }
+
+            # Still within tolerance window → treat as still holding current gesture
             if not self.gesture_broadcast and self.gesture_hold_start_time is not None:
                 self.current_gesture_confidence = max(self.current_gesture_confidence, confidence)
-            
             return {
-                'state': 'holding',  # HOLDING: Animation chaining in game
-                'spell': spell_name,
+                'state': 'holding',
+                'spell': self.current_gesture_name,
                 'confidence': self.current_gesture_confidence,
                 'should_broadcast': True
             }
@@ -477,6 +516,8 @@ class GestureServer:
             self.current_gesture_confidence = 0.0
             self.gesture_hold_start_time = None
             self.gesture_broadcast = False
+            self.gesture_change_candidate = None
+            self.gesture_change_start_time = None
             
             if should_broadcast:
                 print(f"[RELEASE] {gesture_being_released} after {held_time:.1f}s -> cast")
