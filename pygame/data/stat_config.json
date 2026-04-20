@@ -54,9 +54,9 @@
     "orc": {
       "max_health": 30,
       "attack_damage": 10,
-      "move_speed": 60.0,
+      "move_speed": 30.0,
       "aggro_range": 1500,
-      "attack_cooldown": 1.0,
+      "attack_cooldown": 1.5,
       "frame_duration": 0.15,
       "experience_reward": 50,
       "collision": {
@@ -77,9 +77,9 @@
     "skeleton": {
       "max_health": 20,
       "attack_damage": 8,
-      "move_speed": 70.0,
+      "move_speed": 35.0,
       "aggro_range": 1200,
-      "attack_cooldown": 0.8,
+      "attack_cooldown": 1.0,
       "frame_duration": 0.13,
       "experience_reward": 40,
       "collision": {
@@ -100,9 +100,9 @@
     "armored_orc": {
       "max_health": 60,
       "attack_damage": 12,
-      "move_speed": 45.0,
+      "move_speed": 25.0,
       "aggro_range": 1500,
-      "attack_cooldown": 1.2,
+      "attack_cooldown": 1.7,
       "frame_duration": 0.13,
       "experience_reward": 100,
       "collision": {
@@ -123,9 +123,9 @@
     "armored_skeleton": {
       "max_health": 40,
       "attack_damage": 10,
-      "move_speed": 50.0,
+      "move_speed": 25.0,
       "aggro_range": 1200,
-      "attack_cooldown": 1.0,
+      "attack_cooldown": 1.7,
       "frame_duration": 0.13,
       "experience_reward": 70,
       "collision": {
@@ -146,9 +146,9 @@
     "elite_orc": {
       "max_health": 80,
       "attack_damage": 20,
-      "move_speed": 50.0,
+      "move_speed": 25.0,
       "aggro_range": 1500,
-      "attack_cooldown": 1.0,
+      "attack_cooldown": 1.7,
       "frame_duration": 0.13,
       "experience_reward": 150,
       "collision": {
@@ -169,9 +169,9 @@
     "greatsword_skeleton": {
       "max_health": 35,
       "attack_damage": 25,
-      "move_speed": 40.0,
+      "move_speed": 20.0,
       "aggro_range": 1500,
-      "attack_cooldown": 2.0,
+      "attack_cooldown": 2.5,
       "frame_duration": 0.13,
       "experience_reward": 90,
       "collision": {
@@ -192,9 +192,9 @@
     "orc_rider": {
       "max_health": 70,
       "attack_damage": 15,
-      "move_speed": 80.0,
+      "move_speed": 40.0,
       "aggro_range": 2000,
-      "attack_cooldown": 1.0,
+      "attack_cooldown": 1.5,
       "frame_duration": 0.12,
       "experience_reward": 130,
       "collision": {
@@ -215,9 +215,9 @@
     "slime": {
       "max_health": 15,
       "attack_damage": 5,
-      "move_speed": 35.0,
+      "move_speed": 25.0,
       "aggro_range": 1000,
-      "attack_cooldown": 0.6,
+      "attack_cooldown": 0.9,
       "frame_duration": 0.15,
       "experience_reward": 25,
       "collision": {
@@ -238,9 +238,9 @@
     "werebear": {
       "max_health": 100,
       "attack_damage": 18,
-      "move_speed": 35.0,
+      "move_speed": 20.0,
       "aggro_range": 1500,
-      "attack_cooldown": 1.5,
+      "attack_cooldown": 2.0,
       "frame_duration": 0.14,
       "experience_reward": 200,
       "collision": {
@@ -261,9 +261,9 @@
     "werewolf": {
       "max_health": 35,
       "attack_damage": 12,
-      "move_speed": 70.0,
+      "move_speed": 35.0,
       "aggro_range": 1800,
-      "attack_cooldown": 0.6,
+      "attack_cooldown": 0.9,
       "frame_duration": 0.12,
       "experience_reward": 120,
       "collision": {
